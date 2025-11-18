@@ -1,0 +1,6 @@
+# Cambridge now scrapers package
+from .unionmain import UnionMainCambridgeNowScraper
+from .coventry import CoventryCambridgeNowScraper
+from .amlegendhomes import AmericanLegendHomesCambridgeNowScraper
+from .trophysignature import TrophySignatureCambridgeNowScraper
+from .brightlandhomes import BrightlandHomesCambridgeNowScraper 
