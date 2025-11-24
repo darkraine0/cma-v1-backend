@@ -162,15 +162,28 @@ class UnionMainHomesCreeksidePlanScraper(BaseScraper):
                                     continue
                                 seen_plans.add(plan_name)
                                 
-                                # Extract price from h4 element
+                                # Extract price from h4 elements
+                                # Look for price container with structure: old price -> arrow -> new price
+                                # The new price is the last price in the sequence
                                 h4_elements = item.find_all('h4', class_='elementor-heading-title')
                                 price = None
+                                original_price = None
+                                
+                                # Find all price values in h4 elements
+                                price_values = []
                                 for element in h4_elements:
                                     text = element.get_text(strip=True)
-                                    if text.startswith('$'):
-                                        price = self.parse_price(text)
-                                        if price:
-                                            break
+                                    parsed_price = self.parse_price(text)
+                                    if parsed_price:
+                                        price_values.append(parsed_price)
+                                
+                                # If there are multiple prices, the last one is the new price
+                                # and the first one is the original price
+                                if len(price_values) > 1:
+                                    original_price = price_values[0]
+                                    price = price_values[-1]  # Last price is the new price
+                                elif len(price_values) == 1:
+                                    price = price_values[0]
                                 
                                 # Extract property details (beds, baths, sqft) from grid structure
                                 beds = None

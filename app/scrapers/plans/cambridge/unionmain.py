@@ -88,15 +88,29 @@ class UnionMainCambridgePlanScraper(BaseScraper):
                         
                         seen_plan_names.add(plan_name)
                         
-                        # Extract price from h4 element
+                        # Extract price from h4 elements
+                        # Look for price container with structure: old price -> arrow -> new price
+                        # The new price is the last price in the sequence
                         h4_elements = item.find_all('h4', class_='elementor-heading-title')
                         base_price = None
+                        original_price = None
+                        
+                        # Find all price values in h4 elements
+                        price_values = []
                         for element in h4_elements:
                             text = element.get_text(strip=True)
-                            if text.startswith('$') or 'from' in text.lower():
-                                base_price = self.parse_price(text)
-                                if base_price:
-                                    break
+                            # Try both parse_price patterns (with $ and with "from $")
+                            parsed_price = self.parse_price(text)
+                            if parsed_price:
+                                price_values.append(parsed_price)
+                        
+                        # If there are multiple prices, the last one is the new price
+                        # and the first one is the original price
+                        if len(price_values) > 1:
+                            original_price = price_values[0]
+                            base_price = price_values[-1]  # Last price is the new price
+                        elif len(price_values) == 1:
+                            base_price = price_values[0]
                         
                         if not base_price:
                             print(f"[UnionMainCambridgePlanScraper] Skipping item {idx+1}: No price found")

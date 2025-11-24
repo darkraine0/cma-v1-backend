@@ -77,14 +77,28 @@ class UnionMainWaldenPondWestNowScraper(BaseScraper):
                         print(f"[UnionMainWaldenPondWestNowScraper] Skipping item {idx+1}: No address found")
                         continue
                     
-                    # Extract price from h4 element
+                    # Extract price from h4 elements
+                    # Look for price container with structure: old price -> arrow -> new price
+                    # The new price is the last price in the sequence
                     h4_elements = item.find_all('h4', class_='elementor-heading-title')
                     price = None
+                    original_price = None
+                    
+                    # Find all price values in h4 elements
+                    price_values = []
                     for element in h4_elements:
                         text = element.get_text(strip=True)
-                        if text.startswith('$'):
-                            price = self.parse_price(text)
-                            break
+                        parsed_price = self.parse_price(text)
+                        if parsed_price:
+                            price_values.append(parsed_price)
+                    
+                    # If there are multiple prices, the last one is the new price
+                    # and the first one is the original price
+                    if len(price_values) > 1:
+                        original_price = price_values[0]
+                        price = price_values[-1]  # Last price is the new price
+                    elif len(price_values) == 1:
+                        price = price_values[0]
                     
                     if not price:
                         print(f"[UnionMainWaldenPondWestNowScraper] Skipping item {idx+1}: No price found")
@@ -141,7 +155,7 @@ class UnionMainWaldenPondWestNowScraper(BaseScraper):
                         "beds": beds,
                         "baths": baths,
                         "address": address,
-                        "original_price": None,
+                        "original_price": original_price,
                         "price_cut": self.get_price_cut(item),
                         "status": self.get_status(item),
                         "url": property_url
