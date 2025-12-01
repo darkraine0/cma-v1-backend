@@ -1,5 +1,6 @@
 import requests
 import re
+import json
 from bs4 import BeautifulSoup
 from ...base import BaseScraper
 from typing import List, Dict
@@ -35,31 +36,23 @@ class CoventryCambridgeNowScraper(BaseScraper):
         match = re.search(r'(\d+(?:/\d+)?)', text)
         return str(match.group(1)) if match else ""
 
-    def is_quick_move_in(self, card):
-        """Check if this model card represents a quick move-in home (not a floor plan)."""
-        # Quick move-in homes have addresses in the price bar, not model names
-        # Floor plans have model names like "Aurora", "Bishop", etc.
-        price_bar = card.find('a', class_='price-bar')
-        if not price_bar:
-            return False
-        
-        # Check if the first div contains an address pattern (street number + street name)
-        address_div = price_bar.find('div')
-        if not address_div:
-            return False
-        
-        address_text = address_div.get_text(strip=True)
-        
-        # Look for address pattern: number + street name + any street type
-        # This is more inclusive to catch addresses like "2720 Holland Court"
-        address_pattern = r'^\d+\s+[A-Za-z\s]+(?:Ln|Ct|St|Dr|Ave|Blvd|Way|Pl|Cir|Court|Drive|Lane|Street|Road|Boulevard|Avenue|Place|Circle)\.?$'
-        
-        # Also check if it contains a number and looks like an address (not a model name)
-        has_number = bool(re.search(r'^\d+', address_text))
-        has_street_like_text = bool(re.search(r'[A-Za-z\s]+(?:Ln|Ct|St|Dr|Ave|Blvd|Way|Pl|Cir|Court|Drive|Lane|Street|Road|Boulevard|Avenue|Place|Circle)', address_text))
-        
-        # If it has a number and street-like text, it's likely an address
-        return has_number and has_street_like_text
+    def parse_savings(self, text):
+        """Extract savings amount from text like '$65K'."""
+        # Handle formats like "$65K", "$65,000", etc.
+        match = re.search(r'\$([\d,]+)K?', text)
+        if match:
+            value = match.group(1).replace(",", "")
+            # If it ends with K (implicit), multiply by 1000
+            if 'K' in text.upper():
+                return int(value) * 1000
+            return int(value)
+        return None
+
+    def is_quick_move_in(self, article):
+        """Check if this article represents a quick move-in home (has address)."""
+        # Quick move-in homes have addresses, floor plans have model names
+        address_elem = article.find('address')
+        return address_elem is not None
 
     def fetch_plans(self) -> List[Dict]:
         try:
@@ -85,90 +78,95 @@ class CoventryCambridgeNowScraper(BaseScraper):
             listings = []
             seen_addresses = set()  # Track addresses to prevent duplicates
             
-            # Find all model cards - these are the quick move-in homes
-            model_cards = soup.find_all('div', class_='model-card')
-            print(f"[CoventryCambridgeNowScraper] Found {len(model_cards)} total model cards")
+            # Find all article cards - these contain both quick move-in homes and floor plans
+            articles = soup.find_all('article', class_='card-spec')
+            print(f"[CoventryCambridgeNowScraper] Found {len(articles)} total article cards")
             
-            for idx, card in enumerate(model_cards):
+            for idx, article in enumerate(articles):
                 try:
-                    print(f"[CoventryCambridgeNowScraper] Processing model card {idx+1}")
+                    print(f"[CoventryCambridgeNowScraper] Processing article {idx+1}")
                     
-                    # Check if this is actually a quick move-in home (not a floor plan)
-                    if not self.is_quick_move_in(card):
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: Not a quick move-in home (likely floor plan)")
+                    # Check if this is actually a quick move-in home (has address)
+                    if not self.is_quick_move_in(article):
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: Not a quick move-in home (likely floor plan)")
                         continue
                     
-                    # Extract address from the price bar
-                    price_bar = card.find('a', class_='price-bar')
-                    if not price_bar:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: No price bar found")
+                    # Extract address
+                    address_elem = article.find('address')
+                    if not address_elem:
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: No address found")
                         continue
                     
-                    # Get the address (first div in price bar)
-                    address_div = price_bar.find('div')
-                    if not address_div:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: No address found")
-                        continue
-                    
-                    address = address_div.get_text(strip=True)
+                    address = address_elem.get_text(strip=True)
                     if not address:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: Empty address")
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: Empty address")
                         continue
                     
                     # Check for duplicate addresses
                     if address in seen_addresses:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: Duplicate address '{address}'")
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: Duplicate address '{address}'")
                         continue
                     
                     seen_addresses.add(address)
                     
-                    # Extract price information from the price bar
-                    price_spans = price_bar.find_all('span')
+                    # Extract price - try data attribute first, then fall back to text
                     current_price = None
-                    original_price = None
-                    
-                    for span in price_spans:
-                        span_text = span.get_text(strip=True)
-                        if '$' in span_text and 'Was' not in span_text:
-                            current_price = self.parse_price(span_text)
-                        elif 'Was' in span_text:
-                            original_price = self.parse_original_price(span_text)
+                    if article.get('data-price'):
+                        current_price = int(article.get('data-price'))
+                    else:
+                        price_elem = article.find('p', class_='display-6')
+                        if price_elem:
+                            current_price = self.parse_price(price_elem.get_text(strip=True))
                     
                     if not current_price:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: No current price found")
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: No current price found")
                         continue
                     
-                    # Extract square footage, beds, and baths from the model info bar
-                    info_bar = card.find('ul', class_='model-info-bar')
-                    if not info_bar:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: No info bar found")
-                        continue
-                    
-                    info_items = info_bar.find_all('li')
+                    # Extract square footage - try data attribute first, then fall back to text
                     sqft = None
-                    beds = ""
-                    baths = ""
-                    
-                    for item in info_items:
-                        item_text = item.get_text(strip=True)
-                        if 'AREA (SQ FT)' in item_text:
-                            sqft = self.parse_sqft(item_text)
-                        elif 'Beds' in item_text:
-                            beds = self.parse_beds(item_text)
-                        elif 'Bathrooms' in item_text:
-                            baths = self.parse_baths(item_text)
+                    if article.get('data-square-feet'):
+                        sqft = int(article.get('data-square-feet'))
+                    else:
+                        # Try to extract from the info text
+                        info_elem = article.find('p', class_='mb-2')
+                        if info_elem:
+                            info_text = info_elem.get_text(strip=True)
+                            # Look for pattern like "2,994 sqft"
+                            sqft_match = re.search(r'([\d,]+)\s*sqft', info_text, re.IGNORECASE)
+                            if sqft_match:
+                                sqft = int(sqft_match.group(1).replace(",", ""))
                     
                     if not sqft:
-                        print(f"[CoventryCambridgeNowScraper] Skipping card {idx+1}: No square footage found")
+                        print(f"[CoventryCambridgeNowScraper] Skipping article {idx+1}: No square footage found")
                         continue
+                    
+                    # Extract beds and baths from the info text
+                    beds = ""
+                    baths = ""
+                    info_elem = article.find('p', class_='mb-2')
+                    if info_elem:
+                        info_text = info_elem.get_text(strip=True)
+                        # Parse format like "4 bed · 3 bath · 2,994 sqft"
+                        bed_match = re.search(r'(\d+)\s*bed', info_text, re.IGNORECASE)
+                        if bed_match:
+                            beds = bed_match.group(1)
+                        
+                        bath_match = re.search(r'(\d+(?:/\d+)?)\s*bath', info_text, re.IGNORECASE)
+                        if bath_match:
+                            baths = bath_match.group(1)
+                    
+                    # Extract savings/price reduction if present
+                    savings_badge = article.find('span', class_='badge')
+                    price_reduction = None
+                    original_price = None
+                    if savings_badge and 'bg-red' in savings_badge.get('class', []):
+                        savings_text = savings_badge.get_text(strip=True)
+                        price_reduction = self.parse_savings(savings_text)
+                        if price_reduction:
+                            original_price = current_price + price_reduction
                     
                     # Calculate price per sqft
                     price_per_sqft = round(current_price / sqft, 2) if sqft > 0 else None
-                    
-                    # Calculate price reduction if original price exists
-                    price_reduction = None
-                    if original_price and original_price > current_price:
-                        price_reduction = original_price - current_price
                     
                     # Determine if it's a price cut
                     price_cut_text = ""
@@ -191,11 +189,13 @@ class CoventryCambridgeNowScraper(BaseScraper):
                         "price_cut": price_cut_text
                     }
                     
-                    print(f"[CoventryCambridgeNowScraper] Model Card {idx+1}: {plan_data}")
+                    print(f"[CoventryCambridgeNowScraper] Article {idx+1}: {plan_data}")
                     listings.append(plan_data)
                     
                 except Exception as e:
-                    print(f"[CoventryCambridgeNowScraper] Error processing model card {idx+1}: {e}")
+                    print(f"[CoventryCambridgeNowScraper] Error processing article {idx+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             print(f"[CoventryCambridgeNowScraper] Successfully processed {len(listings)} unique quick move-in homes")
@@ -203,4 +203,6 @@ class CoventryCambridgeNowScraper(BaseScraper):
             
         except Exception as e:
             print(f"[CoventryCambridgeNowScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []

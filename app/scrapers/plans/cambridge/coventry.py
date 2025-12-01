@@ -28,6 +28,28 @@ class CoventryCambridgePlanScraper(BaseScraper):
         match = re.search(r'(\d+(?:/\d+)?)', text)
         return str(match.group(1)) if match else ""
 
+    def is_floor_plan(self, article):
+        """Check if this article represents a floor plan (has model name, not address)."""
+        # Floor plans have model names in the description, not addresses
+        # Quick move-in homes have addresses
+        address_elem = article.find('address')
+        if address_elem:
+            return False  # Has address, so it's a quick move-in
+        
+        # Check if there's a model name/plan name mentioned
+        # Look for text like "Kenedy in Cambridge Crossing 40'" or similar
+        card_body = article.find('div', class_='card-body')
+        if card_body:
+            # Look for the last paragraph which often contains model name
+            paragraphs = card_body.find_all('p')
+            for p in paragraphs:
+                text = p.get_text(strip=True)
+                # Model names are typically mentioned like "Kenedy in Cambridge Crossing 40'"
+                if 'in Cambridge Crossing' in text and not text.startswith('$'):
+                    return True
+        
+        return False
+
     def fetch_plans(self) -> List[Dict]:
         try:
             print(f"[CoventryCambridgePlanScraper] Fetching URL: {self.URL}")
@@ -52,68 +74,92 @@ class CoventryCambridgePlanScraper(BaseScraper):
             plans = []
             seen_plan_names = set()  # Track plan names to prevent duplicates
             
-            # Find all floor plan model cards - look for model-card divs that contain floor plan info
-            # These are different from the quick move-in model cards
-            model_cards = soup.find_all('div', class_='model-card')
-            print(f"[CoventryCambridgePlanScraper] Found {len(model_cards)} total model cards")
+            # Find all article cards - look for floor plans (not quick move-ins)
+            articles = soup.find_all('article', class_='card-spec')
+            print(f"[CoventryCambridgePlanScraper] Found {len(articles)} total article cards")
             
-            for idx, card in enumerate(model_cards):
+            for idx, article in enumerate(articles):
                 try:
-                    print(f"[CoventryCambridgePlanScraper] Processing model card {idx+1}")
+                    print(f"[CoventryCambridgePlanScraper] Processing article {idx+1}")
                     
-                    # Check if this is a floor plan (has model name) vs quick move-in (has address)
-                    model_name_elem = card.find('div', class_='model-name')
-                    if not model_name_elem:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: No model name found (likely quick move-in)")
+                    # Check if this is a floor plan (has model name, not address)
+                    if not self.is_floor_plan(article):
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: Not a floor plan (likely quick move-in)")
                         continue
                     
-                    plan_name = model_name_elem.get_text(strip=True)
+                    # Extract model/plan name from the description
+                    card_body = article.find('div', class_='card-body')
+                    if not card_body:
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: No card body found")
+                        continue
+                    
+                    # Look for model name in paragraphs (usually the last paragraph)
+                    paragraphs = card_body.find_all('p')
+                    plan_name = None
+                    for p in paragraphs:
+                        text = p.get_text(strip=True)
+                        # Model names are typically mentioned like "Kenedy in Cambridge Crossing 40'"
+                        if 'in Cambridge Crossing' in text and not text.startswith('$'):
+                            # Extract just the model name (before "in")
+                            plan_name = text.split(' in ')[0].strip()
+                            break
+                    
                     if not plan_name:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: Empty model name")
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: No model name found")
                         continue
                     
                     # Check for duplicate plan names
                     if plan_name in seen_plan_names:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: Duplicate plan name '{plan_name}'")
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: Duplicate plan name '{plan_name}'")
                         continue
                     
                     seen_plan_names.add(plan_name)
                     
-                    # Extract base price from the price bar
-                    price_bar = card.find('a', class_='price-bar')
-                    if not price_bar:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: No price bar found")
-                        continue
+                    # Extract base price - try data attribute first, then fall back to text
+                    base_price = None
+                    if article.get('data-price'):
+                        base_price = int(article.get('data-price'))
+                    else:
+                        price_elem = article.find('p', class_='display-6')
+                        if price_elem:
+                            base_price = self.parse_price(price_elem.get_text(strip=True))
                     
-                    price_text = price_bar.get_text(strip=True)
-                    base_price = self.parse_price(price_text)
                     if not base_price:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: Could not parse price from '{price_text}'")
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: Could not parse price")
                         continue
                     
-                    # Extract square footage, beds, and baths from the model info bar
-                    info_bar = card.find('ul', class_='model-info-bar')
-                    if not info_bar:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: No info bar found")
-                        continue
-                    
-                    info_items = info_bar.find_all('li')
+                    # Extract square footage - try data attribute first, then fall back to text
                     sqft = None
-                    beds = ""
-                    baths = ""
-                    
-                    for item in info_items:
-                        item_text = item.get_text(strip=True)
-                        if 'AREA (SQFT)' in item_text:
-                            sqft = self.parse_sqft(item_text)
-                        elif 'Beds' in item_text:
-                            beds = self.parse_beds(item_text)
-                        elif 'Baths' in item_text:
-                            baths = self.parse_baths(item_text)
+                    if article.get('data-square-feet'):
+                        sqft = int(article.get('data-square-feet'))
+                    else:
+                        # Try to extract from the info text
+                        info_elem = article.find('p', class_='mb-2')
+                        if info_elem:
+                            info_text = info_elem.get_text(strip=True)
+                            # Look for pattern like "2,994 sqft"
+                            sqft_match = re.search(r'([\d,]+)\s*sqft', info_text, re.IGNORECASE)
+                            if sqft_match:
+                                sqft = int(sqft_match.group(1).replace(",", ""))
                     
                     if not sqft:
-                        print(f"[CoventryCambridgePlanScraper] Skipping card {idx+1}: No square footage found")
+                        print(f"[CoventryCambridgePlanScraper] Skipping article {idx+1}: No square footage found")
                         continue
+                    
+                    # Extract beds and baths from the info text
+                    beds = ""
+                    baths = ""
+                    info_elem = article.find('p', class_='mb-2')
+                    if info_elem:
+                        info_text = info_elem.get_text(strip=True)
+                        # Parse format like "4 bed · 3 bath · 2,994 sqft"
+                        bed_match = re.search(r'(\d+)\s*bed', info_text, re.IGNORECASE)
+                        if bed_match:
+                            beds = bed_match.group(1)
+                        
+                        bath_match = re.search(r'(\d+(?:/\d+)?)\s*bath', info_text, re.IGNORECASE)
+                        if bath_match:
+                            baths = bath_match.group(1)
                     
                     # Calculate price per sqft
                     price_per_sqft = round(base_price / sqft, 2) if sqft > 0 else None
@@ -139,7 +185,9 @@ class CoventryCambridgePlanScraper(BaseScraper):
                     plans.append(plan_data)
                     
                 except Exception as e:
-                    print(f"[CoventryCambridgePlanScraper] Error processing model card {idx+1}: {e}")
+                    print(f"[CoventryCambridgePlanScraper] Error processing article {idx+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             print(f"[CoventryCambridgePlanScraper] Successfully processed {len(plans)} unique floor plans")
@@ -147,4 +195,6 @@ class CoventryCambridgePlanScraper(BaseScraper):
             
         except Exception as e:
             print(f"[CoventryCambridgePlanScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
