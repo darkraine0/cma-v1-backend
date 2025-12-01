@@ -1,11 +1,17 @@
-import requests
+import time
 import re
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from ...base import BaseScraper
 from typing import List, Dict
 
+
 class BrightlandHomesCambridgeNowScraper(BaseScraper):
-    URL = "https://www.brightlandhomes.com/new-homes/texas/dallas/green-meadows"
+    URL = "https://www.drbhomes.com/drbhomes/find-your-home/communities/texas/dallasfort-worth/green-meadows/quick-move-in-homes"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -32,123 +38,64 @@ class BrightlandHomesCambridgeNowScraper(BaseScraper):
         match = re.search(r'(\d+)', text)
         return str(match.group(1)) if match else ""
 
-    def extract_floor_plan(self, card):
-        """Extract floor plan name from the card."""
-        floor_plan_div = card.find('div', class_='Inventory-card_cardTitle__sfWte')
-        if floor_plan_div:
-            # The format is "Plan Name - Floor Plan Type" or "Plan Name-Floor Plan Type"
-            text = floor_plan_div.get_text(strip=True)
-            # Split by " - " or "-" and take the first part as the plan name
-            if " - " in text:
-                return text.split(" - ")[0].strip()
-            elif "-" in text:
-                return text.split("-")[0].strip()
-            return text
-        return ""
-
-    def extract_floor_plan_type(self, card):
-        """Extract floor plan type from the card."""
-        floor_plan_div = card.find('div', class_='Inventory-card_cardTitle__sfWte')
-        if floor_plan_div:
-            text = floor_plan_div.get_text(strip=True)
-            # Split by " - " or "-" and take the second part as the floor plan type
-            if " - " in text:
-                parts = text.split(" - ")
-                if len(parts) >= 2:
-                    return parts[1].strip()
-            elif "-" in text:
-                parts = text.split("-")
-                if len(parts) >= 2:
-                    return parts[1].strip()
-            return ""
-        return ""
-
-    def extract_status(self, card):
-        """Extract availability status from the card."""
-        status_div = card.find('div', class_='Inventory-card_availableDate__L1U8m')
-        if status_div:
-            return status_div.get_text(strip=True)
-        return ""
-
-    def extract_address(self, card):
-        """Extract address from the card."""
-        # Find the address section which contains two divs: street address and city/zip
-        address_section = card.find('div', class_='Inventory-card_cardInfo__2nnEn')
-        if address_section:
-            # Find the divs that contain address information
-            address_divs = address_section.find_all('div')
-            if len(address_divs) >= 4:  # We expect at least 4 divs in the card info
-                # The structure is: title, status, street address, city/zip
-                street_address = ""
-                city_zip = ""
-                
-                # Look for the address divs (they come after the title and status)
-                for i, div in enumerate(address_divs):
-                    div_text = div.get_text(strip=True)
-                    # Skip the title and status divs
-                    if div_text.startswith('Premier') or div_text.startswith('Classic') or div_text == "Available Now":
-                        continue
-                    
-                    # The first non-title/non-status div should be the street address
-                    if not street_address:
-                        street_address = div_text
-                    # The second non-title/non-status div should be the city/zip
-                    elif not city_zip:
-                        city_zip = div_text
-                        break
-                
-                if street_address:
-                    return street_address
-        return ""
-
     def fetch_plans(self) -> List[Dict]:
+        driver = None
         try:
             print(f"[BrightlandHomesCambridgeNowScraper] Fetching URL: {self.URL}")
             
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                "Accept-Language": "en-US,en;q=0.9",
-            }
+            # Setup Chrome options
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
             
-            resp = requests.get(self.URL, headers=headers, timeout=15)
-            print(f"[BrightlandHomesCambridgeNowScraper] Response status: {resp.status_code}")
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(self.URL)
             
-            if resp.status_code != 200:
-                print(f"[BrightlandHomesCambridgeNowScraper] Request failed with status {resp.status_code}")
-                return []
+            # Wait for the page to load and content to be populated
+            print(f"[BrightlandHomesCambridgeNowScraper] Waiting for page to load...")
+            time.sleep(10)
             
-            soup = BeautifulSoup(resp.content, 'html.parser')
-            listings = []
-            seen_addresses = set()  # Track addresses to prevent duplicates
+            # Scroll to trigger content loading
+            print(f"[BrightlandHomesCambridgeNowScraper] Scrolling to trigger content loading...")
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(5)
+            
+            # Wait for home cards to be loaded
+            wait = WebDriverWait(driver, 20)
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "drb-qmi-home-card")))
+            
+            # Get the page source after JavaScript has loaded
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
             
             # Find all home cards
-            home_cards = soup.find_all('div', class_='Inventory-card_card__zCZYC')
+            home_cards = soup.find_all('drb-qmi-home-card')
             print(f"[BrightlandHomesCambridgeNowScraper] Found {len(home_cards)} home cards")
+            
+            listings = []
+            seen_addresses = set()  # Track addresses to prevent duplicates
             
             for idx, card in enumerate(home_cards):
                 try:
                     print(f"[BrightlandHomesCambridgeNowScraper] Processing card {idx+1}")
                     
-                    # Extract address
-                    address = self.extract_address(card)
-                    if not address:
+                    # Extract address from h2 in heading-container
+                    heading_container = card.find('div', class_='heading-container')
+                    if not heading_container:
+                        print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: No heading-container found")
+                        continue
+                    
+                    address_elem = heading_container.find('h2')
+                    if not address_elem:
                         print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: No address found")
                         continue
                     
-                    # Clean up the address - remove city/zip information
-                    if 'Celina' in address:
-                        address = address.split('Celina')[0].strip()
-                    if '75009' in address:
-                        address = address.split('75009')[0].strip()
-                    # Remove any trailing commas or spaces
-                    address = address.rstrip(', ').strip()
-                    
+                    address = address_elem.get_text(strip=True).replace('<br>', ' ').replace('\n', ' ').strip()
                     if not address:
-                        print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: Empty address after cleaning")
+                        print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: Empty address")
                         continue
                     
                     # Check for duplicate addresses
@@ -158,98 +105,147 @@ class BrightlandHomesCambridgeNowScraper(BaseScraper):
                     
                     seen_addresses.add(address)
                     
-                    # Extract price
-                    price_div = card.find('div', class_='Inventory-card_priceBox__9qHxs')
-                    if not price_div:
+                    # Extract price from heading-container paragraph
+                    price = None
+                    price_span = heading_container.find('span', class_=lambda x: x and 'ng-star-inserted' in x)
+                    if price_span:
+                        price_b = price_span.find('b')
+                        if price_b:
+                            price_text = price_b.get_text(strip=True)
+                            price = self.parse_price(price_text)
+                    
+                    # If no price found, check if it's sold
+                    if not price:
+                        # Check if there's a "sold" indicator
+                        special_elem = card.find('p', class_=lambda x: x and 'sold' in str(x).lower())
+                        if special_elem and 'sold' in special_elem.get_text(strip=True).lower():
+                            print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: Home is sold")
+                            continue
                         print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: No price found")
                         continue
                     
-                    current_price = self.parse_price(price_div.get_text())
-                    if not current_price:
-                        print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: No current price found")
-                        continue
-                    
-                    # Extract status
-                    status = self.extract_status(card)
-                    
-                    # Extract floor plan and type
-                    floor_plan = self.extract_floor_plan(card)
-                    floor_plan_type = self.extract_floor_plan_type(card)
-                    
-                    # Extract home details (beds, baths, garage, sqft)
-                    detail_list = card.find('div', class_='Inventory-card_roomDetails__0id2t')
+                    # Extract details from details-container
+                    details_container = card.find('div', class_='details-container')
                     beds = ""
                     baths = ""
-                    garage = ""
                     sqft = None
+                    garage = ""
+                    plan_name = ""
+                    status = ""
                     
-                    if detail_list:
-                        detail_items = detail_list.find_all('div', class_='Inventory-card_roomDetail__dVHSI')
-                        for item in detail_items:
-                            # The structure has icons followed by text, so we need to get the text content
-                            text_content = item.find('p')
-                            if text_content:
-                                text_value = text_content.get_text(strip=True)
-                                # Determine the type based on the icon alt text or position
-                                # We'll use position for now since the structure is consistent
-                                if len(detail_items) >= 4:
-                                    if detail_items.index(item) == 0:  # First item is beds
-                                        beds = self.parse_beds(text_value)
-                                    elif detail_items.index(item) == 1:  # Second item is baths
-                                        baths = self.parse_baths(text_value)
-                                    elif detail_items.index(item) == 2:  # Third item is garage
-                                        garage = self.parse_garage(text_value)
-                                    elif detail_items.index(item) == 3:  # Fourth item is sqft
-                                        sqft = self.parse_sqft(text_value)
+                    if details_container:
+                        detail_rows = details_container.find_all('div', class_='details-row')
+                        
+                        # First row: beds and baths
+                        if len(detail_rows) > 0:
+                            first_row = detail_rows[0]
+                            bed_elems = first_row.find_all('p', class_=lambda x: x and 'ng-star-inserted' in x)
+                            for bed_elem in bed_elems:
+                                bed_text = bed_elem.get_text(strip=True)
+                                if 'Bed' in bed_text or 'Beds' in bed_text:
+                                    bed_b = bed_elem.find('b')
+                                    if bed_b:
+                                        beds = self.parse_beds(bed_b.get_text(strip=True))
+                                elif 'Bath' in bed_text:
+                                    bath_b = bed_elem.find('b')
+                                    if bath_b:
+                                        baths = self.parse_baths(bath_b.get_text(strip=True))
+                        
+                        # Second row: sqft and garage
+                        if len(detail_rows) > 1:
+                            second_row = detail_rows[1]
+                            second_row_elems = second_row.find_all('p', class_=lambda x: x and 'ng-star-inserted' in x)
+                            for elem in second_row_elems:
+                                elem_text = elem.get_text(strip=True)
+                                if 'Sq. Ft.' in elem_text or 'Sq Ft' in elem_text:
+                                    sqft_b = elem.find('b')
+                                    if sqft_b:
+                                        sqft = self.parse_sqft(sqft_b.get_text(strip=True))
+                                elif 'Car Garage' in elem_text or 'Garage' in elem_text:
+                                    garage_b = elem.find('b')
+                                    if garage_b:
+                                        garage = self.parse_garage(garage_b.get_text(strip=True))
+                        
+                        # Third row: plan name and availability
+                        if len(detail_rows) > 2:
+                            third_row = detail_rows[2]
+                            third_row_elems = third_row.find_all('p', class_=lambda x: x and 'ng-star-inserted' in x)
+                            for elem in third_row_elems:
+                                elem_text = elem.get_text(strip=True)
+                                if 'Plan' in elem_text:
+                                    plan_b = elem.find('b')
+                                    if plan_b:
+                                        plan_name = plan_b.get_text(strip=True)
+                                elif 'Available' in elem_text:
+                                    status_b = elem.find('b')
+                                    if status_b:
+                                        status = status_b.get_text(strip=True)
                     
                     if not sqft:
                         print(f"[BrightlandHomesCambridgeNowScraper] Skipping card {idx+1}: No square footage found")
                         continue
                     
                     # Calculate price per sqft
-                    price_per_sqft = round(current_price / sqft, 2) if sqft > 0 else None
+                    price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
                     
-                    # Determine if this is a quick move-in or under construction
-                    home_type = "now"
-                    if "Under Construction" in status or "Coming Soon" in status:
-                        home_type = "construction"
+                    # Extract detail link
+                    detail_link = ""
+                    link_tag = card.find('a', class_='btn-primary')
+                    if link_tag and link_tag.get('href'):
+                        href = link_tag['href']
+                        if href.startswith('/'):
+                            detail_link = f"https://www.drbhomes.com{href}"
+                        else:
+                            detail_link = href
                     
-                    # Determine stories based on floor plan name
-                    stories = "2"  # Most Brightland homes in Cambridge are 2-story
-                    if floor_plan in ["Premier", "Classic"]:
-                        stories = "2"
-                    else:
-                        stories = "1"
+                    # Extract image URL
+                    image_url = ""
+                    img_tag = card.find('img', class_='gallery-image')
+                    if img_tag and img_tag.get('src'):
+                        image_url = img_tag['src']
+                    
+                    # Default stories (most homes are 2-story)
+                    stories = "2"
                     
                     plan_data = {
-                        "price": current_price,
+                        "price": price,
                         "sqft": sqft,
                         "stories": stories,
                         "price_per_sqft": price_per_sqft,
-                        "plan_name": floor_plan or address,
+                        "plan_name": plan_name or address,
                         "company": "Brightland Homes",
                         "community": "Cambridge",
-                        "type": home_type,
+                        "type": "now",
                         "beds": beds,
                         "baths": baths,
                         "address": address,
                         "original_price": None,
                         "price_cut": "",
-                        "status": status,
+                        "status": status or "Available Now",
                         "mls": "",
-                        "sub_community": floor_plan_type or "Green Meadows"
+                        "sub_community": "Green Meadows",
+                        "image_url": image_url,
+                        "detail_link": detail_link,
+                        "garage": garage
                     }
                     
-                    print(f"[BrightlandHomesCambridgeNowScraper] Home {idx+1}: {plan_data}")
+                    print(f"[BrightlandHomesCambridgeNowScraper] Home {idx+1}: {address} - {plan_name} - ${price:,} - {sqft} sqft - {beds} beds - {baths} baths")
                     listings.append(plan_data)
                     
                 except Exception as e:
                     print(f"[BrightlandHomesCambridgeNowScraper] Error processing card {idx+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
-            print(f"[BrightlandHomesCambridgeNowScraper] Successfully processed {len(listings)} items")
+            print(f"[BrightlandHomesCambridgeNowScraper] Successfully processed {len(listings)} homes")
             return listings
             
         except Exception as e:
             print(f"[BrightlandHomesCambridgeNowScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
+        finally:
+            if driver:
+                driver.quit()
