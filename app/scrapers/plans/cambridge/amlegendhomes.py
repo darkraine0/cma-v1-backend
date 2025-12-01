@@ -1,6 +1,11 @@
-import requests
 import re
+import time
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from ...base import BaseScraper
 from typing import List, Dict
 
@@ -34,26 +39,62 @@ class AmericanLegendHomesCambridgePlanScraper(BaseScraper):
         return str(match.group(1)) if match else "1"
 
     def fetch_plans(self) -> List[Dict]:
+        driver = None
         try:
             print(f"[AmericanLegendHomesCambridgePlanScraper] Fetching URL: {self.URL}")
             
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                "Accept-Language": "en-US,en;q=0.9",
-            }
+            # Setup Chrome options for headless browsing
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
             
-            resp = requests.get(self.URL, headers=headers, timeout=15)
-            print(f"[AmericanLegendHomesCambridgePlanScraper] Response status: {resp.status_code}")
+            # Initialize Chrome driver
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(self.URL)
             
-            if resp.status_code != 200:
-                print(f"[AmericanLegendHomesCambridgePlanScraper] Request failed with status {resp.status_code}")
-                return []
+            # Wait for content to load
+            print(f"[AmericanLegendHomesCambridgePlanScraper] Waiting for content to load...")
+            WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "css-zxy9ty"))
+            )
             
-            soup = BeautifulSoup(resp.content, 'html.parser')
+            # Scroll to load more content and make buttons visible
+            print(f"[AmericanLegendHomesCambridgePlanScraper] Scrolling to load more content...")
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            
+            # Click "Load More Plans" button until it disappears or no more items load
+            max_clicks = 10  # Safety limit
+            click_count = 0
+            while click_count < max_clicks:
+                try:
+                    load_more_button = driver.find_element(By.CLASS_NAME, "CommunityPlans_load")
+                    if load_more_button and load_more_button.is_displayed():
+                        print(f"[AmericanLegendHomesCambridgePlanScraper] Clicking 'Load More Plans' button (attempt {click_count + 1})...")
+                        driver.execute_script("arguments[0].click();", load_more_button)
+                        time.sleep(3)  # Wait for content to load
+                        click_count += 1
+                    else:
+                        print(f"[AmericanLegendHomesCambridgePlanScraper] Load More button not visible, stopping")
+                        break
+                except Exception as e:
+                    print(f"[AmericanLegendHomesCambridgePlanScraper] No more 'Load More Plans' button found: {e}")
+                    break
+            
+            if click_count > 0:
+                print(f"[AmericanLegendHomesCambridgePlanScraper] Clicked 'Load More Plans' button {click_count} times")
+            
+            # Scroll again to ensure all content is loaded
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            
+            # Get the page source after JavaScript execution and clicking
+            html_content = driver.page_source
+            soup = BeautifulSoup(html_content, 'html.parser')
             listings = []
             seen_plan_names = set()  # Track plan names to prevent duplicates
             
@@ -169,3 +210,6 @@ class AmericanLegendHomesCambridgePlanScraper(BaseScraper):
         except Exception as e:
             print(f"[AmericanLegendHomesCambridgePlanScraper] Error: {e}")
             return []
+        finally:
+            if driver:
+                driver.quit()
