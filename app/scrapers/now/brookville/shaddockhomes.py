@@ -36,7 +36,9 @@ class ShaddockHomesBrookvilleNowScraper(BaseScraper):
         """Extract number of bathrooms from text."""
         if not text:
             return None
-        match = re.search(r'(\d+)', text)
+        # Handle fractional baths like "2.5" or "2 .5"
+        text = text.replace(' ', '')
+        match = re.search(r'(\d+\.?\d*)', text)
         return str(match.group(1)) if match else None
 
     def parse_stories(self, text):
@@ -49,83 +51,72 @@ class ShaddockHomesBrookvilleNowScraper(BaseScraper):
     def extract_property_data(self, property_card):
         """Extract data from a property card div."""
         try:
-            # Extract address from the street wrapper
+            # Extract address from span.HomeCard_city
             address = None
-            street_wrapper = property_card.find('div', class_='HomeCard_streetWrapper')
-            if street_wrapper:
-                street_link = street_wrapper.find('a', class_='HomeCard_street')
-                if street_link:
-                    # Get all text content from the link, excluding the span
-                    all_text = street_link.get_text()
-                    
-                    # Find the subtitle span to extract city/state info
-                    subtitle = street_link.find('span', class_='HomeCard_subtitle')
-                    if subtitle:
-                        subtitle_text = subtitle.get_text(strip=True)
-                        # Remove the subtitle text from all_text to get just the street address
-                        street_text = all_text.replace(subtitle_text, '').strip()
-                        # Clean up any extra whitespace or special characters
-                        street_text = re.sub(r'\s+', ' ', street_text).strip()
-                        address = f"{street_text}, {subtitle_text}"
-                    else:
-                        address = all_text.strip()
+            city_elem = property_card.find('span', class_='HomeCard_city')
+            if city_elem:
+                address = city_elem.get_text(strip=True)
+                # Clean up any extra whitespace
+                address = re.sub(r'\s+', ' ', address).strip()
             
-            # Extract price
+            # Extract price from div.HomeCard_priceValue
             price = None
-            price_elem = property_card.find('span', class_='HomeCard_price')
+            price_elem = property_card.find('div', class_='HomeCard_priceValue')
             if price_elem:
                 price_text = price_elem.get_text(strip=True)
                 price = self.parse_price(price_text)
             
-            # Extract status
+            # Extract status from div.HomeCard_statusBanner > span.active
             status = "Now"
-            status_elem = property_card.find('span', class_='HomeCard_status')
-            if status_elem:
-                status_text = status_elem.get_text(strip=True)
-                if status_text:
-                    status = status_text
+            status_banner = property_card.find('div', class_='HomeCard_statusBanner')
+            if status_banner:
+                status_span = status_banner.find('span', class_='active')
+                if status_span:
+                    status_text = status_span.get_text(strip=True)
+                    if status_text:
+                        status = status_text
             
-            # Extract features from the feature list
+            # Extract features from ul.HomeCard_contentRow > li.HomeCard_specItem
             beds = None
             baths = None
             sqft = None
             
-            feature_list = property_card.find('ul', class_='list-unstyled')
+            feature_list = property_card.find('ul', class_='HomeCard_contentRow')
             if feature_list:
-                features = feature_list.find_all('li', class_='HomeCard_listItem')
+                features = feature_list.find_all('li', class_='HomeCard_specItem')
                 for feature in features:
-                    feature_text = feature.get_text(strip=True)
+                    # Get the label to identify what this feature is
+                    label_elem = feature.find('span', class_='HomeCard_iconListLabel')
+                    value_elem = feature.find('span', class_='HomeCard_iconListValue')
                     
-                    # Look for bed/bath/sqft information
-                    if 'Beds' in feature_text:
-                        beds = self.parse_beds(feature_text)
-                    elif 'Baths' in feature_text:
-                        baths = self.parse_baths(feature_text)
-                    elif 'SQ FT' in feature_text:
-                        sqft = self.parse_sqft(feature_text)
+                    if label_elem and value_elem:
+                        label_text = label_elem.get_text(strip=True)
+                        value_text = value_elem.get_text(strip=True)
+                        
+                        if 'Beds' in label_text:
+                            beds = self.parse_beds(value_text)
+                        elif 'Baths' in label_text:
+                            # Handle fractional baths - get all text and clean it up
+                            bath_text = value_elem.get_text(strip=True)
+                            # Replace spaces to handle "2 .5" -> "2.5"
+                            bath_text = bath_text.replace(' ', '')
+                            baths = self.parse_baths(bath_text) if bath_text else None
+                        elif 'SQ FT' in label_text:
+                            sqft = self.parse_sqft(value_text)
             
-            # Extract plan name from community info
+            # Extract plan name from ul.HomeCard_contentRowAlt > li.HomeCard_specItemAlt > a[href*="/plan/"]
             plan_name = None
-            community_list = property_card.find('ul', class_='HomeCard_community')
-            if community_list:
-                plan_link = community_list.find('a', href=re.compile(r'/plan/'))
-                if plan_link:
-                    plan_name = plan_link.get_text(strip=True)
+            alt_list = property_card.find('ul', class_='HomeCard_contentRowAlt')
+            if alt_list:
+                alt_items = alt_list.find_all('li', class_='HomeCard_specItemAlt')
+                for item in alt_items:
+                    plan_link = item.find('a', href=re.compile(r'/plan/'))
+                    if plan_link:
+                        plan_name = plan_link.get_text(strip=True)
+                        break
             
             # Extract stories (default to 1 if not found)
             stories = "1"
-            
-            # Check for completion date banner
-            completion_banner = property_card.find('div', class_='HomeCard_completionDateBanner')
-            if completion_banner:
-                completion_text = completion_banner.get_text(strip=True)
-                if completion_text:
-                    status = completion_text
-            
-            # Check for sold banner
-            sold_banner = property_card.find('div', class_='SoldHome_banner')
-            if sold_banner:
-                status = "Sold"
             
             return {
                 "price": price,
@@ -175,8 +166,8 @@ class ShaddockHomesBrookvilleNowScraper(BaseScraper):
                     
                     soup = BeautifulSoup(resp.content, 'html.parser')
                     
-                    # Look for property cards with class "css-mrdg38" (these are the home cards)
-                    property_cards = soup.find_all('div', class_='css-mrdg38')
+                    # Look for property cards with class "HomeCard_wrapper" (these are the home cards)
+                    property_cards = soup.find_all('div', class_='HomeCard_wrapper')
                     print(f"[ShaddockHomesBrookvilleNowScraper] URL {url_idx + 1}: Found {len(property_cards)} property cards")
                     
                     for card_idx, property_card in enumerate(property_cards):
