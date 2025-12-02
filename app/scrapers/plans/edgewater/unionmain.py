@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class UnionMainEdgewaterPlanScraper(BaseScraper):
-    URL = "https://unionmainhomes.com/floorplans-all/?nh=edgewater"
+    URL = "https://unionmainhomes.com/communities/edgewater/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -92,9 +92,9 @@ class UnionMainEdgewaterPlanScraper(BaseScraper):
             listings = []
             seen_plan_names = set()  # Track plan names to prevent duplicates
             
-            # Try new structure first (e-loop-item)
-            loop_items = soup.find_all('div', class_='e-loop-item')
-            floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+            # Try new structure first (e-loop-item with floorplan class)
+            # Use lambda to match divs that have both 'e-loop-item' and 'floorplan' in their class list
+            floorplan_items = soup.find_all('div', class_=lambda x: x and 'e-loop-item' in x and 'floorplan' in x)
             
             if floorplan_items:
                 print(f"[UnionMainEdgewaterPlanScraper] Found {len(floorplan_items)} floorplan items (new structure)")
@@ -117,20 +117,32 @@ class UnionMainEdgewaterPlanScraper(BaseScraper):
                         
                         seen_plan_names.add(plan_name)
                         
-                        # Extract price from h4 elements
-                        # Look for price container with structure: old price -> arrow -> new price
-                        # The new price is the last price in the sequence
-                        h4_elements = item.find_all('h4', class_='elementor-heading-title')
+                        # Extract price from h4 elements, but exclude those in the grid container
+                        # First, find the grid container to exclude its h4 elements
+                        grid_container = item.find('div', class_='e-grid')
+                        
                         current_price = None
                         original_price = None
                         
-                        # Find all price values in h4 elements
+                        # Find all h4 elements with prices (containing $)
+                        # but exclude those that are descendants of the grid container
+                        all_h4s = item.find_all('h4', class_='elementor-heading-title')
                         price_values = []
-                        for element in h4_elements:
-                            text = element.get_text(strip=True)
-                            parsed_price = self.parse_price(text)
-                            if parsed_price:
-                                price_values.append(parsed_price)
+                        
+                        for h4 in all_h4s:
+                            # Skip if this h4 is inside the grid container
+                            if grid_container:
+                                # Check if h4 is a descendant of grid_container using find_parents
+                                parents = h4.find_parents()
+                                if grid_container in parents:
+                                    continue
+                            
+                            text = h4.get_text(strip=True)
+                            # Only process h4 elements that contain a $ sign (prices)
+                            if '$' in text:
+                                parsed_price = self.parse_price(text)
+                                if parsed_price:
+                                    price_values.append(parsed_price)
                         
                         # If there are multiple prices, the last one is the new price
                         # and the first one is the original price
@@ -244,6 +256,8 @@ class UnionMainEdgewaterPlanScraper(BaseScraper):
                         if not current_price:
                             print(f"[UnionMainEdgewaterPlanScraper] Skipping plan {idx+1}: No current price found")
                             continue
+                        
+                        original_price = None  # Not available in old structure
                         
                         # Extract beds, baths, and sqft from amenities
                         amenities = listing.find('ul', class_='item-amenities item-amenities-without-icons')
