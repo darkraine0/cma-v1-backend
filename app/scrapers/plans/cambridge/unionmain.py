@@ -14,7 +14,12 @@ class UnionMainCambridgePlanScraper(BaseScraper):
 
     def parse_price(self, text):
         """Extract base price from text."""
+        # Try "from $X" pattern first
         match = re.search(r'from \$([\d,]+)', text)
+        if match:
+            return int(match.group(1).replace(",", ""))
+        # Fall back to "$X" pattern (without "from")
+        match = re.search(r'\$([\d,]+)', text)
         return int(match.group(1).replace(",", "")) if match else None
 
     def parse_beds(self, text):
