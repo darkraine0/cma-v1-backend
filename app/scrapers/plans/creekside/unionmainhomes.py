@@ -6,7 +6,7 @@ from typing import List, Dict
 
 class UnionMainHomesCreeksidePlanScraper(BaseScraper):
     URLS = [
-        "https://unionmainhomes.com/floorplans-all/?nh=creekside"
+        "https://unionmainhomes.com/communities/creekside/"
     ]
 
     def parse_sqft(self, text):
@@ -203,9 +203,9 @@ class UnionMainHomesCreeksidePlanScraper(BaseScraper):
                                             label = h4s[1].get_text(strip=True)
                                             
                                             if label == 'BEDS':
-                                                beds = self.parse_beds(value)
+                                                beds = value
                                             elif label == 'BATHS':
-                                                baths = self.parse_baths(value)
+                                                baths = value
                                             elif label == 'SQFT':
                                                 sqft = self.parse_sqft(value)
                                 
@@ -224,8 +224,8 @@ class UnionMainHomesCreeksidePlanScraper(BaseScraper):
                                     "company": "UnionMain Homes",
                                     "community": "Creekside",
                                     "type": "plan",
-                                    "beds": beds,
-                                    "baths": baths,
+                                    "beds": beds if beds else "",
+                                    "baths": baths if baths else "",
                                     "lot_size": None
                                 }
                                 
