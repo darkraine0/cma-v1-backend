@@ -2,4 +2,5 @@
 from .unionmain import UnionMainCambridgePlanScraper
 from .coventry import CoventryCambridgePlanScraper
 from .amlegendhomes import AmericanLegendHomesCambridgePlanScraper
-from .brightlandhomes import BrightlandHomesCambridgePlanScraper 
+from .brightlandhomes import BrightlandHomesCambridgePlanScraper
+from .trophysignature import TrophySignatureCambridgePlanScraper 

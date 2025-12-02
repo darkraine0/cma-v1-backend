@@ -19,6 +19,7 @@ from app.scrapers.now.cambridge.coventry import CoventryCambridgeNowScraper
 from app.scrapers.now.cambridge.highlandhomes import HighlandHomesCambridgeNowScraper
 from app.scrapers.now.cambridge.amlegendhomes import AmericanLegendHomesCambridgeNowScraper
 from app.scrapers.now.cambridge.trophysignature import TrophySignatureCambridgeNowScraper
+from app.scrapers.plans.cambridge.trophysignature import TrophySignatureCambridgePlanScraper
 from app.scrapers.now.cambridge.brightlandhomes import BrightlandHomesCambridgeNowScraper
 from app.scrapers.now.milrany.unionmain import UnionMainMilranyNowScraper
 from app.scrapers.now.milrany.bloomfield import BloomfieldMilranyNowScraper
@@ -172,8 +173,9 @@ class ScraperScheduler:
             # CoventryCambridgeNowScraper(),
             # HighlandHomesCambridgeNowScraper(),
             # AmericanLegendHomesCambridgeNowScraper(),
-            # TrophySignatureCambridgeNowScraper(),
-            BrightlandHomesCambridgeNowScraper(),
+            TrophySignatureCambridgeNowScraper(),
+            TrophySignatureCambridgePlanScraper(),
+            # BrightlandHomesCambridgeNowScraper(),
             # UnionMainMilranyNowScraper(),
             # BloomfieldMilranyNowScraper(),
             # PacesetterMilranyNowScraper(),
@@ -183,7 +185,7 @@ class ScraperScheduler:
             # CoventryCambridgePlanScraper(),
             # HighlandHomesCambridgePlanScraper(),
             # AmericanLegendHomesCambridgePlanScraper(),
-            BrightlandHomesCambridgePlanScraper(),
+            # BrightlandHomesCambridgePlanScraper(),
             # BeazerHomesBrookvilleNowScraper(),
             # TrophySignatureBrookvilleNowScraper(),
             # HighlandHomesBrookvilleNowScraper(),
