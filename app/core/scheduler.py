@@ -149,21 +149,21 @@ from app.scrapers.now.waldenpondwest.historymaker import HistoryMakerWaldenPondW
 from app.db.session import SessionLocal
 from app.services.change_detection import detect_and_update_changes
 
-SCRAPE_INTERVAL_SECONDS = 3600  # 5 minutes
+SCRAPE_INTERVAL_SECONDS = 3600  # 1 hour
 
 class ScraperScheduler:
     def __init__(self):
         # Add all scraper instances here as you implement more
         self.scrapers = [
             # DRHortonElevonNowScraper(),
-            # UnionMainElevonNowScraper(),
+            UnionMainElevonNowScraper(),
             # HistoryMakerElevonNowScraper(),
             # MIHomesElevonNowScraper(),
             # TrophySignatureElevonNowScraper(),
             # PacesetterElevonNowScraper(),
             # KHovnanianElevonNowScraper(),
             # DRHortonElevonPlanScraper(),
-            # UnionMainElevonPlanScraper(),
+            UnionMainElevonPlanScraper(),
             # HistoryMakerElevonPlanScraper(),
             # KHovnanianElevonPlanScraper(),
             # MIHomesElevonPlanScraper(),
@@ -194,11 +194,11 @@ class ScraperScheduler:
             # HistoryMakerBrookvilleNowScraper(),
             # AshtonWoodsBrookvilleNowScraper(),
             # ShaddockHomesBrookvilleNowScraper(),
-            UnionMainEdgewaterNowScraper(),
+            # UnionMainEdgewaterNowScraper(),
             # PerryHomesEdgewaterNowScraper(),
             # CoventryHomesEdgewaterNowScraper(),
             # ChesmarHomesEdgewaterNowScraper(),
-            UnionMainEdgewaterPlanScraper(),
+            # UnionMainEdgewaterPlanScraper(),
             # CoventryHomesEdgewaterPlanScraper(),
             # UnionMainCreeksideNowScraper(),
             # HighlandHomesCreeksideNowScraper(),
