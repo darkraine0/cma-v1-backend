@@ -52,15 +52,26 @@ class UnionMainLakeBreezePlanScraper(BaseScraper):
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Find the floorplans section
-            floorplans_section = soup.find('div', id='floorplans')
-            if not floorplans_section:
-                print(f"[UnionMainLakeBreezePlanScraper] No floorplans section found")
-                return []
-            
-            # Find all loop items with floorplan class
-            loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+            # Find all loop items with floorplan class (similar to Cambridge scraper)
+            # Try multiple approaches to find the loop items
+            loop_items = soup.find_all('div', class_='e-loop-item')
             floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+            
+            # If not found, try finding by data-elementor-type attribute
+            if not floorplan_items:
+                loop_items = soup.find_all('div', attrs={'data-elementor-type': 'loop-item'})
+                floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+            
+            # If still not found, try finding within floorplans section
+            if not floorplan_items:
+                floorplans_section = soup.find('div', id='floorplans')
+                if floorplans_section:
+                    loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+                    floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+                    if not floorplan_items:
+                        loop_items = floorplans_section.find_all('div', attrs={'data-elementor-type': 'loop-item'})
+                        floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+            
             print(f"[UnionMainLakeBreezePlanScraper] Found {len(floorplan_items)} floorplan items")
             
             listings = []
@@ -76,8 +87,8 @@ class UnionMainLakeBreezePlanScraper(BaseScraper):
                         continue
                     
                     # Extract price from h4 elements
-                    # Look for price container with structure: old price -> arrow -> new price
-                    # The new price is the last price in the sequence
+                    # Look for price container - the price is in an h4 with class elementor-heading-title
+                    # inside a container with class elementor-element-2b9264e
                     h4_elements = item.find_all('h4', class_='elementor-heading-title')
                     price = None
                     original_price = None
@@ -120,18 +131,24 @@ class UnionMainLakeBreezePlanScraper(BaseScraper):
                                 label = h4s[1].get_text(strip=True)
                                 
                                 if label == 'BEDS':
-                                    beds = value
+                                    beds = value  # Keep as string, e.g., "3", "4"
                                 elif label == 'BATHS':
-                                    baths = value
+                                    baths = value  # Keep as string, e.g., "2", "2.5", "3.5"
                                 elif label == 'SQFT':
                                     sqft = self.parse_sqft(value)
                     
-                    if not all([beds, baths, sqft]):
+                    # Check if we have all required fields (beds and baths can be empty strings but should have values)
+                    if not beds or not baths or not sqft:
                         print(f"[UnionMainLakeBreezePlanScraper] Skipping item {idx+1}: Missing property details (beds: {beds}, baths: {baths}, sqft: {sqft})")
                         continue
                     
-                    # Extract plan link
+                    # Extract plan link - look for anchor tag that wraps the item or is inside it
                     link_elem = item.find('a', href=re.compile(r'/communities/lake-breeze/plans/'))
+                    if not link_elem:
+                        # Try finding parent anchor tag
+                        parent_a = item.find_parent('a', href=re.compile(r'/communities/lake-breeze/plans/'))
+                        if parent_a:
+                            link_elem = parent_a
                     plan_url = link_elem.get('href') if link_elem else None
                     
                     # Calculate price per sqft
@@ -158,6 +175,8 @@ class UnionMainLakeBreezePlanScraper(BaseScraper):
                     
                 except Exception as e:
                     print(f"[UnionMainLakeBreezePlanScraper] Error processing item {idx+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             print(f"[UnionMainLakeBreezePlanScraper] Successfully processed {len(listings)} plans")
@@ -165,4 +184,6 @@ class UnionMainLakeBreezePlanScraper(BaseScraper):
             
         except Exception as e:
             print(f"[UnionMainLakeBreezePlanScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
