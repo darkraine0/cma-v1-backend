@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class UnionMainMilranyPlanScraper(BaseScraper):
-    URL = "https://unionmainhomes.com/floorplans-all/?nh=milrany-ranch"
+    URL = "https://unionmainhomes.com/communities/milrany/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -13,8 +13,13 @@ class UnionMainMilranyPlanScraper(BaseScraper):
         return int(match.group(1).replace(",", "")) if match else None
 
     def parse_price(self, text):
-        """Extract starting price from text."""
-        match = re.search(r'from \$([\d,]+)', text)
+        """Extract base price from text."""
+        # Try "from $X" pattern first
+        match = re.search(r'from \$([\d,]+)', text, re.IGNORECASE)
+        if match:
+            return int(match.group(1).replace(",", ""))
+        # Fall back to "$X" pattern (without "from")
+        match = re.search(r'\$([\d,]+)', text)
         return int(match.group(1).replace(",", "")) if match else None
 
     def parse_beds(self, text):
@@ -83,8 +88,7 @@ class UnionMainMilranyPlanScraper(BaseScraper):
                         seen_plan_names.add(plan_name)
                         
                         # Extract price from h4 elements
-                        # Look for price container with structure: old price -> arrow -> new price
-                        # The new price is the last price in the sequence
+                        # Look for price container - price is typically in a container before the grid
                         h4_elements = item.find_all('h4', class_='elementor-heading-title')
                         starting_price = None
                         original_price = None
@@ -93,6 +97,9 @@ class UnionMainMilranyPlanScraper(BaseScraper):
                         price_values = []
                         for element in h4_elements:
                             text = element.get_text(strip=True)
+                            # Skip labels like "BEDS", "BATHS", "SQFT"
+                            if text in ['BEDS', 'BATHS', 'SQFT']:
+                                continue
                             # Try both parse_price patterns (with $ and with "from $")
                             parsed_price = self.parse_price(text)
                             if parsed_price:
@@ -107,7 +114,7 @@ class UnionMainMilranyPlanScraper(BaseScraper):
                             starting_price = price_values[0]
                         
                         if not starting_price:
-                            print(f"[UnionMainMilranyPlanScraper] Skipping item {idx+1}: No price found")
+                            print(f"[UnionMainMilranyPlanScraper] Skipping item {idx+1}: No price found (checked {len(h4_elements)} h4 elements)")
                             continue
                         
                         # Extract property details (beds, baths, sqft) from grid structure
@@ -141,6 +148,12 @@ class UnionMainMilranyPlanScraper(BaseScraper):
                         # Calculate price per sqft
                         price_per_sqft = round(starting_price / sqft, 2) if sqft > 0 else None
                         
+                        # Extract plan detail URL from the link
+                        plan_detail_url = ""
+                        link_elem = item.find('a')
+                        if link_elem:
+                            plan_detail_url = link_elem.get('href', '')
+                        
                         plan_data = {
                             "price": starting_price,
                             "sqft": sqft,
@@ -154,7 +167,9 @@ class UnionMainMilranyPlanScraper(BaseScraper):
                             "baths": baths if baths else "",
                             "address": "",
                             "original_price": original_price,
-                            "price_cut": ""
+                            "price_cut": "",
+                            "image_url": "",
+                            "plan_detail_url": plan_detail_url
                         }
                         
                         print(f"[UnionMainMilranyPlanScraper] Item {idx+1}: {plan_data}")
