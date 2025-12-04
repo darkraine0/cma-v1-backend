@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class UnionMainMyrtleCreekPlanScraper(BaseScraper):
-    URL = "https://unionmainhomes.com/communities/myrtle-creek/#homefinder"
+    URL = "https://unionmainhomes.com/communities/myrtle-creek/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -51,118 +51,197 @@ class UnionMainMyrtleCreekPlanScraper(BaseScraper):
                 return []
             
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Find the floorplans section
-            floorplans_section = soup.find('div', id='floorplans')
-            if not floorplans_section:
-                print(f"[UnionMainMyrtleCreekPlanScraper] No floorplans section found")
-                return []
-            
-            # Find all loop items with floorplan class
-            loop_items = floorplans_section.find_all('div', class_='e-loop-item')
-            floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
-            print(f"[UnionMainMyrtleCreekPlanScraper] Found {len(floorplan_items)} floorplan items")
-            
             listings = []
             
-            for idx, item in enumerate(floorplan_items):
-                try:
-                    # Extract plan name from h2 element
-                    plan_name_elem = item.find('h2', class_='elementor-heading-title')
-                    plan_name = plan_name_elem.get_text(strip=True) if plan_name_elem else None
-                    
-                    if not plan_name:
-                        print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: No plan name found")
-                        continue
-                    
-                    # Extract price from h4 elements
-                    # Look for price container with structure: old price -> arrow -> new price
-                    # The new price is the last price in the sequence
-                    h4_elements = item.find_all('h4', class_='elementor-heading-title')
-                    price = None
-                    original_price = None
-                    
-                    # Find all price values in h4 elements
-                    price_values = []
-                    for element in h4_elements:
-                        text = element.get_text(strip=True)
-                        parsed_price = self.parse_price(text)
-                        if parsed_price:
-                            price_values.append(parsed_price)
-                    
-                    # If there are multiple prices, the last one is the new price
-                    # and the first one is the original price
-                    if len(price_values) > 1:
-                        original_price = price_values[0]
-                        price = price_values[-1]  # Last price is the new price
-                    elif len(price_values) == 1:
-                        price = price_values[0]
-                    
-                    if not price:
-                        print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: No price found")
-                        continue
-                    
-                    # Extract property details (beds, baths, sqft) from grid structure
-                    beds = None
-                    baths = None
-                    sqft = None
-                    
-                    # Find the grid container that holds beds/baths/sqft
-                    grid_container = item.find('div', class_='e-grid')
-                    if grid_container:
-                        # Find all containers with the bed/bath/sqft structure
-                        detail_containers = grid_container.find_all('div', class_='e-flex', recursive=False)
+            # Try new structure first (e-loop-item) - search entire soup like Cambridge scraper
+            loop_items = soup.find_all('div', class_='e-loop-item')
+            floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+            
+            if floorplan_items:
+                print(f"[UnionMainMyrtleCreekPlanScraper] Found {len(floorplan_items)} floorplan items (new structure)")
+                for idx, item in enumerate(floorplan_items):
+                    try:
+                        print(f"[UnionMainMyrtleCreekPlanScraper] Processing item {idx+1}")
                         
-                        for container in detail_containers:
-                            h4s = container.find_all('h4', class_='elementor-heading-title')
-                            if len(h4s) >= 2:
-                                value = h4s[0].get_text(strip=True)
-                                label = h4s[1].get_text(strip=True)
-                                
-                                if label == 'BEDS':
-                                    beds = value
-                                elif label == 'BATHS':
-                                    baths = value
-                                elif label == 'SQFT':
-                                    sqft = self.parse_sqft(value)
-                    
-                    if not all([beds, baths, sqft]):
-                        print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: Missing property details (beds: {beds}, baths: {baths}, sqft: {sqft})")
+                        # Extract plan name from h2 element
+                        plan_name_elem = item.find('h2', class_='elementor-heading-title')
+                        plan_name = plan_name_elem.get_text(strip=True) if plan_name_elem else None
+                        
+                        if not plan_name:
+                            print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: No plan name found")
+                            continue
+                        
+                        # Extract price from h4 elements
+                        # Look for price container with structure: old price -> arrow -> new price
+                        # The new price is the last price in the sequence
+                        h4_elements = item.find_all('h4', class_='elementor-heading-title')
+                        price = None
+                        original_price = None
+                        
+                        # Find all price values in h4 elements
+                        price_values = []
+                        for element in h4_elements:
+                            text = element.get_text(strip=True)
+                            parsed_price = self.parse_price(text)
+                            if parsed_price:
+                                price_values.append(parsed_price)
+                        
+                        # If there are multiple prices, the last one is the new price
+                        # and the first one is the original price
+                        if len(price_values) > 1:
+                            original_price = price_values[0]
+                            price = price_values[-1]  # Last price is the new price
+                        elif len(price_values) == 1:
+                            price = price_values[0]
+                        
+                        if not price:
+                            print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: No price found")
+                            continue
+                        
+                        # Extract property details (beds, baths, sqft) from grid structure
+                        beds = None
+                        baths = None
+                        sqft = None
+                        
+                        # Find the grid container that holds beds/baths/sqft
+                        grid_container = item.find('div', class_='e-grid')
+                        if grid_container:
+                            # Find all containers with the bed/bath/sqft structure
+                            detail_containers = grid_container.find_all('div', class_='e-flex', recursive=False)
+                            
+                            for container in detail_containers:
+                                h4s = container.find_all('h4', class_='elementor-heading-title')
+                                if len(h4s) >= 2:
+                                    value = h4s[0].get_text(strip=True)
+                                    label = h4s[1].get_text(strip=True)
+                                    
+                                    if label == 'BEDS':
+                                        beds = value
+                                    elif label == 'BATHS':
+                                        baths = value
+                                    elif label == 'SQFT':
+                                        sqft = self.parse_sqft(value)
+                        
+                        if not sqft:
+                            print(f"[UnionMainMyrtleCreekPlanScraper] Skipping item {idx+1}: No square footage found")
+                            continue
+                        
+                        # Extract plan link
+                        link_elem = item.find('a', href=re.compile(r'/communities/myrtle-creek/plans/'))
+                        plan_url = link_elem.get('href') if link_elem else None
+                        
+                        # Calculate price per sqft
+                        price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
+                        
+                        plan_data = {
+                            "price": price,
+                            "sqft": sqft,
+                            "stories": self.parse_stories(""),
+                            "price_per_sqft": price_per_sqft,
+                            "plan_name": plan_name,
+                            "company": "UnionMain Homes",
+                            "community": "Myrtle Creek",
+                            "type": "plan",
+                            "beds": beds if beds else "",
+                            "baths": baths if baths else "",
+                            "address": "",  # Plans don't have addresses
+                            "design_number": plan_name,  # Use plan name as design number
+                            "url": plan_url
+                        }
+                        
+                        print(f"[UnionMainMyrtleCreekPlanScraper] Item {idx+1}: {plan_data['plan_name']} - ${price:,} - {sqft:,} sqft")
+                        listings.append(plan_data)
+                        
+                    except Exception as e:
+                        print(f"[UnionMainMyrtleCreekPlanScraper] Error processing item {idx+1}: {e}")
+                        import traceback
+                        traceback.print_exc()
                         continue
+            else:
+                # Fall back to searching within floorplans section
+                floorplans_section = soup.find('div', id='floorplans')
+                if floorplans_section:
+                    print(f"[UnionMainMyrtleCreekPlanScraper] Trying fallback: searching within floorplans section")
+                    loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+                    floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
+                    print(f"[UnionMainMyrtleCreekPlanScraper] Found {len(floorplan_items)} floorplan items in floorplans section")
                     
-                    # Extract plan link
-                    link_elem = item.find('a', href=re.compile(r'/communities/myrtle-creek/plans/'))
-                    plan_url = link_elem.get('href') if link_elem else None
-                    
-                    # Calculate price per sqft
-                    price_per_sqft = round(price / sqft, 2) if sqft else None
-                    
-                    plan_data = {
-                        "price": price,
-                        "sqft": sqft,
-                        "stories": self.parse_stories(""),
-                        "price_per_sqft": price_per_sqft,
-                        "plan_name": plan_name,
-                        "company": "UnionMain Homes",
-                        "community": "Myrtle Creek",
-                        "type": "plan",
-                        "beds": beds,
-                        "baths": baths,
-                        "address": "",  # Plans don't have addresses
-                        "design_number": plan_name,  # Use plan name as design number
-                        "url": plan_url
-                    }
-                    
-                    print(f"[UnionMainMyrtleCreekPlanScraper] Item {idx+1}: {plan_data['plan_name']} - ${price:,} - {sqft:,} sqft")
-                    listings.append(plan_data)
-                    
-                except Exception as e:
-                    print(f"[UnionMainMyrtleCreekPlanScraper] Error processing item {idx+1}: {e}")
-                    continue
+                    # Process items same way as above
+                    for idx, item in enumerate(floorplan_items):
+                        try:
+                            plan_name_elem = item.find('h2', class_='elementor-heading-title')
+                            plan_name = plan_name_elem.get_text(strip=True) if plan_name_elem else None
+                            
+                            if not plan_name:
+                                continue
+                            
+                            h4_elements = item.find_all('h4', class_='elementor-heading-title')
+                            price_values = []
+                            for element in h4_elements:
+                                text = element.get_text(strip=True)
+                                parsed_price = self.parse_price(text)
+                                if parsed_price:
+                                    price_values.append(parsed_price)
+                            
+                            price = price_values[-1] if price_values else None
+                            if not price:
+                                continue
+                            
+                            beds = None
+                            baths = None
+                            sqft = None
+                            
+                            grid_container = item.find('div', class_='e-grid')
+                            if grid_container:
+                                detail_containers = grid_container.find_all('div', class_='e-flex', recursive=False)
+                                for container in detail_containers:
+                                    h4s = container.find_all('h4', class_='elementor-heading-title')
+                                    if len(h4s) >= 2:
+                                        value = h4s[0].get_text(strip=True)
+                                        label = h4s[1].get_text(strip=True)
+                                        if label == 'BEDS':
+                                            beds = value
+                                        elif label == 'BATHS':
+                                            baths = value
+                                        elif label == 'SQFT':
+                                            sqft = self.parse_sqft(value)
+                            
+                            if not sqft:
+                                continue
+                            
+                            link_elem = item.find('a', href=re.compile(r'/communities/myrtle-creek/plans/'))
+                            plan_url = link_elem.get('href') if link_elem else None
+                            
+                            price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
+                            
+                            plan_data = {
+                                "price": price,
+                                "sqft": sqft,
+                                "stories": self.parse_stories(""),
+                                "price_per_sqft": price_per_sqft,
+                                "plan_name": plan_name,
+                                "company": "UnionMain Homes",
+                                "community": "Myrtle Creek",
+                                "type": "plan",
+                                "beds": beds if beds else "",
+                                "baths": baths if baths else "",
+                                "address": "",
+                                "design_number": plan_name,
+                                "url": plan_url
+                            }
+                            
+                            print(f"[UnionMainMyrtleCreekPlanScraper] Item {idx+1}: {plan_data['plan_name']} - ${price:,} - {sqft:,} sqft")
+                            listings.append(plan_data)
+                            
+                        except Exception as e:
+                            print(f"[UnionMainMyrtleCreekPlanScraper] Error processing item {idx+1}: {e}")
+                            continue
             
             print(f"[UnionMainMyrtleCreekPlanScraper] Successfully processed {len(listings)} plans")
             return listings
             
         except Exception as e:
             print(f"[UnionMainMyrtleCreekPlanScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []

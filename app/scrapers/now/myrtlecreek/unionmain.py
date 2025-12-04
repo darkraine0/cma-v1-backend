@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class UnionMainMyrtleCreekNowScraper(BaseScraper):
-    URL = "https://unionmainhomes.com/communities/myrtle-creek/#homefinder"
+    URL = "https://unionmainhomes.com/communities/myrtle-creek/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
