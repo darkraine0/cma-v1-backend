@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class UnionMainMaddoxPlanScraper(BaseScraper):
-    URL = "https://unionmainhomes.com/floorplans-all/?nh=maddox-landing"
+    URL = "https://unionmainhomes.com/communities/maddox-landing/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -13,13 +13,18 @@ class UnionMainMaddoxPlanScraper(BaseScraper):
         return int(match.group(1).replace(",", "")) if match else None
 
     def parse_price(self, text):
-        """Extract starting price from text."""
+        """Extract base price from text."""
+        # Try "from $X" pattern first
         match = re.search(r'from \$([\d,]+)', text)
+        if match:
+            return int(match.group(1).replace(",", ""))
+        # Fall back to "$X" pattern (without "from")
+        match = re.search(r'\$([\d,]+)', text)
         return int(match.group(1).replace(",", "")) if match else None
 
     def parse_beds(self, text):
         """Extract number of bedrooms from text."""
-        match = re.search(r'(\d+(?:\.\d+)?)', text)
+        match = re.search(r'(\d+)', text)
         return str(match.group(1)) if match else ""
 
     def parse_baths(self, text):
@@ -89,14 +94,15 @@ class UnionMainMaddoxPlanScraper(BaseScraper):
                         starting_price = None
                         original_price = None
                         
-                        # Find all price values in h4 elements
+                        # Find all price values in h4 elements (only those with $ symbol)
                         price_values = []
                         for element in h4_elements:
                             text = element.get_text(strip=True)
-                            # Try both parse_price patterns (with $ and with "from $")
-                            parsed_price = self.parse_price(text)
-                            if parsed_price:
-                                price_values.append(parsed_price)
+                            # Only process elements that contain $ symbol to avoid beds/baths/sqft
+                            if '$' in text:
+                                parsed_price = self.parse_price(text)
+                                if parsed_price:
+                                    price_values.append(parsed_price)
                         
                         # If there are multiple prices, the last one is the new price
                         # and the first one is the original price
