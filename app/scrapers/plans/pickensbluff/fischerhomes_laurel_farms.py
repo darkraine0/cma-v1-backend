@@ -47,14 +47,31 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
             print(f"[FischerHomesLaurelFarmsPlanScraper] Waiting for page to load...")
             time.sleep(10)
             
-            # Scroll to trigger content loading
-            print(f"[FischerHomesLaurelFarmsPlanScraper] Scrolling to trigger content loading...")
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)
+            # Scroll to the residences-homes section to trigger AngularJS content loading
+            print(f"[FischerHomesLaurelFarmsPlanScraper] Scrolling to residences-homes section...")
+            try:
+                # Try to scroll to the section element
+                section = driver.find_element(By.ID, "residences-homes")
+                driver.execute_script("arguments[0].scrollIntoView(true);", section)
+                time.sleep(3)
+            except:
+                # Fallback: scroll to bottom
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(3)
+            
+            # Scroll back up a bit to ensure visibility
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight * 0.7);")
+            time.sleep(3)
             
             # Wait for plan cards to be loaded
-            wait = WebDriverWait(driver, 20)
-            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "floorplan-card")))
+            wait = WebDriverWait(driver, 30)
+            try:
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "article.floorplan-card")))
+                # Additional wait for AngularJS to finish rendering
+                time.sleep(5)
+            except Exception as e:
+                print(f"[FischerHomesLaurelFarmsPlanScraper] Warning: Timeout waiting for floorplan cards: {e}")
+                # Continue anyway to see what we can find
             
             # Get the page source after JavaScript has loaded
             soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -63,6 +80,12 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
             plan_cards = soup.find_all('article', class_='floorplan-card')
             print(f"[FischerHomesLaurelFarmsPlanScraper] Found {len(plan_cards)} plan cards")
             
+            if len(plan_cards) == 0:
+                print(f"[FischerHomesLaurelFarmsPlanScraper] No plan cards found. Page source length: {len(driver.page_source)}")
+                # Try to find any article elements
+                all_articles = soup.find_all('article')
+                print(f"[FischerHomesLaurelFarmsPlanScraper] Found {len(all_articles)} total article elements")
+            
             plans = []
             
             for card in plan_cards:
@@ -70,20 +93,31 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
                     # Extract plan name
                     plan_name_elem = card.find('h3', class_='reg__card-title')
                     if not plan_name_elem:
+                        print(f"[FischerHomesLaurelFarmsPlanScraper] Skipping card - no plan name found")
                         continue
                     plan_name = plan_name_elem.get_text(strip=True)
                     
-                    # Extract price - look for "Starting at" text
-                    price_elem = card.find('span', class_='reg__card-price')
+                    # Extract price - look for strong tag with price text
                     price = None
+                    price_elem = card.find('span', class_='reg__card-price')
                     if price_elem:
-                        price_span = price_elem.find('span', class_='ng-binding')
-                        if price_span:
-                            price_text = price_span.get_text(strip=True)
-                            # Extract price from "Starting at $492,990"
-                            price_match = re.search(r'\$([\d,]+)', price_text)
-                            if price_match:
-                                price = int(price_match.group(1).replace(',', ''))
+                        # Look for strong tag first (most common structure)
+                        strong_elem = price_elem.find('strong', class_='ng-binding')
+                        if strong_elem:
+                            price_text = strong_elem.get_text(strip=True)
+                        else:
+                            # Fallback: look for any span with ng-binding
+                            price_span = price_elem.find('span', class_='ng-binding')
+                            if price_span:
+                                price_text = price_span.get_text(strip=True)
+                            else:
+                                # Last resort: get all text from price element
+                                price_text = price_elem.get_text(strip=True)
+                        
+                        # Extract price from "Starting at $352,990" or similar
+                        price_match = re.search(r'\$([\d,]+)', price_text)
+                        if price_match:
+                            price = int(price_match.group(1).replace(',', ''))
                     
                     # Extract beds, baths, sqft from snapshot-info
                     snapshot_info = card.find('snapshot-info')
@@ -104,22 +138,26 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
                         if baths_attr:
                             baths = baths_attr
                         if sqft_attr:
-                            # Extract first number from range like "2,711 - 3,831"
+                            # Extract first number from range like "1,810 - 2,762"
                             sqft_match = re.search(r'([\d,]+)', sqft_attr)
                             if sqft_match:
                                 sqft = int(sqft_match.group(1).replace(',', ''))
                         if levels_attr:
                             stories = f"{levels_attr} Story"
                     
-                    # Extract URL
+                    # Extract URL - look for "View Details" link
                     url = None
                     footer_link = card.find('div', class_='reg__card-footer')
                     if footer_link:
-                        link_elem = footer_link.find('a', href=True)
-                        if link_elem:
-                            url = link_elem.get('href')
-                            if url and not url.startswith('http'):
-                                url = f"https://www.fischerhomes.com{url}"
+                        # Find the first link that contains "View Details" or just the first link
+                        link_elems = footer_link.find_all('a', href=True)
+                        for link_elem in link_elems:
+                            link_text = link_elem.get_text(strip=True)
+                            if 'View Details' in link_text or not url:
+                                url = link_elem.get('href')
+                                if url and not url.startswith('http'):
+                                    url = f"https://www.fischerhomes.com{url}"
+                                break
                     
                     # Calculate price per sqft
                     price_per_sqft = None
@@ -147,6 +185,8 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
                         
                 except Exception as e:
                     print(f"[FischerHomesLaurelFarmsPlanScraper] Error processing plan card: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             print(f"[FischerHomesLaurelFarmsPlanScraper] Successfully processed {len(plans)} plans")
@@ -154,6 +194,8 @@ class FischerHomesLaurelFarmsPlanScraper(BaseScraper):
             
         except Exception as e:
             print(f"[FischerHomesLaurelFarmsPlanScraper] Error fetching plans: {e}")
+            import traceback
+            traceback.print_exc()
             return []
         finally:
             if driver:

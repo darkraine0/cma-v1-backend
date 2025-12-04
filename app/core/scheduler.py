@@ -130,6 +130,7 @@ from app.scrapers.now.wildflowerranch.pulte import PulteWildflowerRanchNowScrape
 from app.scrapers.now.wildflowerranch.kbhome import KBHomeWildflowerRanchNowScraper
 from app.scrapers.now.wildflowerranch.mihorton import MIHortonWildflowerRanchNowScraper
 from app.scrapers.now.pickensbluff.davidsonhomes import DavidsonHomesPickensBluffNowScraper
+from app.scrapers.plans.pickensbluff.davidsonhomes import DavidsonHomesPickensBluffPlanScraper
 from app.scrapers.plans.pickensbluff.fischerhomes import FischerHomesPickensBluffPlanScraper
 from app.scrapers.now.pickensbluff.fischerhomes import FischerHomesPickensBluffNowScraper
 from app.scrapers.plans.pickensbluff.fischerhomes_laurel_farms import FischerHomesLaurelFarmsPlanScraper
@@ -246,7 +247,7 @@ class ScraperScheduler:
             # ChristieHomesLakeBreezeNowScraper(),
             # TrophySignatureHomesLakeBreezeNowScraper(),
             # BloomFieldHomesLakeBreezeNowScraper(),
-            UnionMainMyrtleCreekNowScraper(),
+            # UnionMainMyrtleCreekNowScraper(),
             # BloomFieldHomesMyrtleCreekNowScraper(),
             # HighlandHomesMyrtleCreekNowScraper(),
             # ChesmarHomesMyrtleCreekNowScraper(),
@@ -256,7 +257,7 @@ class ScraperScheduler:
             # DRHortonBluestemNowScraper(),
             # UnionMainLakeBreezePlanScraper(),
             # BlueHavenHomesLakeBreezePlanScraper(),
-            UnionMainMyrtleCreekPlanScraper(),
+            # UnionMainMyrtleCreekPlanScraper(),
             # HighlandHomesMyrtleCreekPlanScraper(),
             # ChesmarHomesMyrtleCreekPlanScraper(),
             # DavidWeekleyHomesMyrtleCreekPlanScraper(),
@@ -285,10 +286,11 @@ class ScraperScheduler:
             # KBHomeWildflowerRanchNowScraper(),
             # MIHortonWildflowerRanchNowScraper(),
             # DavidsonHomesPickensBluffNowScraper(),
+            # DavidsonHomesPickensBluffPlanScraper(),
             # FischerHomesPickensBluffPlanScraper(),
             # FischerHomesPickensBluffNowScraper(),
-            # FischerHomesLaurelFarmsPlanScraper(),
-            # FischerHomesLaurelFarmsNowScraper(),
+            FischerHomesLaurelFarmsPlanScraper(),
+            FischerHomesLaurelFarmsNowScraper(),
             # FischerHomesSageWoodsPlanScraper(),
             # FischerHomesSageWoodsNowScraper(),
             # BrightlandWaldenPondWestPlanScraper(),
