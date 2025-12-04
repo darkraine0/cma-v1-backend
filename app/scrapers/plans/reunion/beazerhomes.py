@@ -9,8 +9,8 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
-        # Handle ranges like "2,253 - 2,442" or single values like "1,531"
-        if ' - ' in text:
+        # Handle ranges like "2,253-2,442" or "2,253 - 2,442" or single values like "1,531"
+        if '-' in text:
             # Take the first number for ranges
             match = re.search(r'([\d,]+)', text)
         else:
@@ -24,8 +24,8 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
 
     def parse_beds(self, text):
         """Extract number of bedrooms from text."""
-        # Handle ranges like "3 - 4" or single values like "3"
-        if ' - ' in text:
+        # Handle ranges like "3-4" or "3 - 4" or single values like "3"
+        if '-' in text:
             match = re.search(r'(\d+)\s*-\s*(\d+)', text)
             if match:
                 return f"{match.group(1)}-{match.group(2)}"
@@ -37,8 +37,8 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
 
     def parse_baths(self, text):
         """Extract number of bathrooms from text."""
-        # Handle ranges like "2.5 - 3" or single values like "2"
-        if ' - ' in text:
+        # Handle ranges like "2.5-3" or "2.5 - 3" or single values like "2"
+        if '-' in text:
             match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
             if match:
                 return f"{match.group(1)}-{match.group(2)}"
@@ -77,21 +77,36 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
             listings = []
             seen_plan_names = set()  # Track plan names to prevent duplicates
             
-            # Find all plan cards - these are in div elements with class 'card_list_item' and data-product-type="plan"
-            plan_cards = soup.find_all('div', attrs={'data-product-type': 'plan'})
+            # Find all plan cards - these are in div elements with class 'swiper-slide'
+            # We need to find the active tab panel for "Home plans" (tab-0)
+            # Try finding by id first, then fall back to data-state="active"
+            tab_panel = soup.find('div', {'id': 'tab-0', 'role': 'tabpanel'})
+            if not tab_panel:
+                # Fallback: find active tab panel
+                tab_panel = soup.find('div', {'role': 'tabpanel', 'data-state': 'active'})
+            if not tab_panel:
+                print(f"[BeazerHomesReunionPlanScraper] Could not find Home plans tab panel")
+                return []
+            
+            plan_cards = tab_panel.find_all('div', class_='swiper-slide')
             print(f"[BeazerHomesReunionPlanScraper] Found {len(plan_cards)} plan cards")
             
             for idx, card in enumerate(plan_cards):
                 try:
                     print(f"[BeazerHomesReunionPlanScraper] Processing plan card {idx+1}")
                     
-                    # Extract plan name from h2 element with class 'font24 bold'
-                    plan_name_elem = card.find('h2', class_='font24 bold')
-                    if not plan_name_elem:
+                    # Extract plan name from h3 > a element
+                    plan_name_elem = card.find('h3')
+                    if plan_name_elem:
+                        plan_name_link = plan_name_elem.find('a')
+                        if plan_name_link:
+                            plan_name = plan_name_link.get_text(strip=True)
+                        else:
+                            plan_name = plan_name_elem.get_text(strip=True)
+                    else:
                         print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No plan name found")
                         continue
                     
-                    plan_name = plan_name_elem.get_text(strip=True)
                     if not plan_name:
                         print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: Empty plan name")
                         continue
@@ -103,8 +118,17 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
                     
                     seen_plan_names.add(plan_name)
                     
-                    # Extract starting price from p element with class 'font18 no-margin right-align'
-                    price_elem = card.find('p', class_='font18 no-margin right-align')
+                    # Extract starting price from p element with specific classes
+                    # Look for p with class containing 'text-numeric-xs' and 'font-numeric-bold'
+                    price_elem = None
+                    for p in card.find_all('p'):
+                        classes = p.get('class', [])
+                        if 'text-numeric-xs' in classes and 'font-numeric-bold' in classes:
+                            price_text = p.get_text(strip=True)
+                            if 'From $' in price_text:
+                                price_elem = p
+                                break
+                    
                     if not price_elem:
                         print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No price found")
                         continue
@@ -114,30 +138,36 @@ class BeazerHomesReunionPlanScraper(BaseScraper):
                         print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No starting price found")
                         continue
                     
-                    # Extract square footage from li elements
-                    sqft = None
-                    list_items = card.find_all('li')
-                    for item in list_items:
-                        item_text = item.get_text(strip=True)
-                        if 'Sq. Ft.' in item_text:
-                            sqft = self.parse_sqft(item_text)
-                            break
-                    
-                    if not sqft:
-                        print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No square footage found")
+                    # Extract specs from ul with aria-label="Feature Specifications"
+                    specs_ul = card.find('ul', {'aria-label': 'Feature Specifications'})
+                    if not specs_ul:
+                        print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No specs found")
                         continue
                     
-                    # Extract beds and baths from li elements
+                    sqft = None
                     beds = ""
                     baths = ""
                     stories = "1"
                     
-                    for item in list_items:
-                        item_text = item.get_text(strip=True)
-                        if 'Bedroom' in item_text:
-                            beds = self.parse_beds(item_text)
-                        elif 'Bathroom' in item_text:
-                            baths = self.parse_baths(item_text)
+                    # Extract specs from li elements
+                    spec_items = specs_ul.find_all('li')
+                    for item in spec_items:
+                        # Each li has two p elements: label and value
+                        p_elements = item.find_all('p')
+                        if len(p_elements) >= 2:
+                            label = p_elements[0].get_text(strip=True)
+                            value = p_elements[1].get_text(strip=True)
+                            
+                            if 'Size' in label or 'sq ft' in label.lower():
+                                sqft = self.parse_sqft(value)
+                            elif 'Bedroom' in label:
+                                beds = self.parse_beds(value)
+                            elif 'Bathroom' in label:
+                                baths = self.parse_baths(value)
+                    
+                    if not sqft:
+                        print(f"[BeazerHomesReunionPlanScraper] Skipping plan card {idx+1}: No square footage found")
+                        continue
                     
                     # Calculate price per sqft
                     price_per_sqft = round(starting_price / sqft, 2) if sqft > 0 else None
