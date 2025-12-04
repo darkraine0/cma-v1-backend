@@ -52,14 +52,8 @@ class UnionMainPickensBluffPlanScraper(BaseScraper):
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Find the floorplans section
-            floorplans_section = soup.find('div', id='floorplans')
-            if not floorplans_section:
-                print(f"[UnionMainPickensBluffPlanScraper] No floorplans section found")
-                return []
-            
-            # Find all loop items with floorplan class
-            loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+            # Find all loop items with floorplan class (same approach as Cambridge scraper)
+            loop_items = soup.find_all('div', class_='e-loop-item')
             floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
             print(f"[UnionMainPickensBluffPlanScraper] Found {len(floorplan_items)} floorplan items")
             
@@ -126,8 +120,8 @@ class UnionMainPickensBluffPlanScraper(BaseScraper):
                                 elif label == 'SQFT':
                                     sqft = self.parse_sqft(value)
                     
-                    if not all([beds, baths, sqft]):
-                        print(f"[UnionMainPickensBluffPlanScraper] Skipping item {idx+1}: Missing property details (beds: {beds}, baths: {baths}, sqft: {sqft})")
+                    if not sqft:
+                        print(f"[UnionMainPickensBluffPlanScraper] Skipping item {idx+1}: No square footage found")
                         continue
                     
                     # Extract plan link
@@ -146,8 +140,8 @@ class UnionMainPickensBluffPlanScraper(BaseScraper):
                         "company": "UnionMain Homes",
                         "community": "Pickens Bluff",
                         "type": "plan",
-                        "beds": beds,
-                        "baths": baths,
+                        "beds": beds if beds else "",
+                        "baths": baths if baths else "",
                         "address": "",  # Plans don't have addresses
                         "design_number": plan_name,  # Use plan name as design number
                         "url": plan_url
