@@ -53,16 +53,16 @@ class PiedmontResidentialPickensBluffNowScraper(BaseScraper):
 
     def get_price_cut(self, container):
         """Extract price cut information if available."""
-        price_elem = container.find('p', class_='font15 w700 uk-margin-small uk-text-center')
-        if price_elem and '<strike>' in str(price_elem):
+        price_container = container.find('div', class_='uk-margin-small uk-text-center')
+        if price_container and '<strike>' in str(price_container):
             return "price_reduced"
         return ""
 
     def get_original_price(self, container):
         """Extract original price if there's a price cut."""
-        price_elem = container.find('p', class_='font15 w700 uk-margin-small uk-text-center')
-        if price_elem and '<strike>' in str(price_elem):
-            strike_match = re.search(r'<strike>\$([\d,]+)', str(price_elem))
+        price_container = container.find('div', class_='uk-margin-small uk-text-center')
+        if price_container and '<strike>' in str(price_container):
+            strike_match = re.search(r'<strike>\$([\d,]+)', str(price_container))
             return int(strike_match.group(1).replace(",", "")) if strike_match else None
         return None
 
@@ -139,10 +139,23 @@ class PiedmontResidentialPickensBluffNowScraper(BaseScraper):
                         # Remove the map marker icon text
                         address = re.sub(r'^.*?&nbsp;', '', address_text)
                     
-                    # Extract price
-                    price_elem = card.find('p', class_='font15 w700 uk-margin-small uk-text-center')
-                    price_text = str(price_elem) if price_elem else ""
-                    price = self.parse_price(price_text)
+                    # Extract price - try data-price attribute first, then parse from HTML
+                    price = None
+                    if card.get('data-price'):
+                        try:
+                            price = int(card.get('data-price'))
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # If data-price not available, parse from HTML
+                    if not price:
+                        price_container = card.find('div', class_='uk-margin-small uk-text-center')
+                        if price_container:
+                            price_span = price_container.find('span', class_='font15 w700')
+                            if price_span:
+                                price_text = str(price_span)
+                                price = self.parse_price(price_text)
+                    
                     original_price = self.get_original_price(card)
                     
                     if not price:
