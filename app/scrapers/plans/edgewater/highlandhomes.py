@@ -11,7 +11,10 @@ from typing import List, Dict
 
 
 class HighlandHomesEdgewaterPlanScraper(BaseScraper):
-    URL = "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/70ft-lots/section"
+    URLS = [
+        "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/70ft-lots/section",
+        "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/60ft-lots/section"
+    ]
     
     def parse_price(self, text):
         """Extract price from text."""
@@ -84,43 +87,55 @@ class HighlandHomesEdgewaterPlanScraper(BaseScraper):
             
             driver = webdriver.Chrome(options=chrome_options)
             
-            print(f"[HighlandHomesEdgewaterPlanScraper] Fetching URL: {self.URL}")
-            driver.get(self.URL)
-            
-            # Wait for the page to load and Cloudflare to pass
-            print(f"[HighlandHomesEdgewaterPlanScraper] Waiting for page to load...")
-            time.sleep(15)  # Extra time for Cloudflare
-            
-            # Scroll to trigger content loading
-            print(f"[HighlandHomesEdgewaterPlanScraper] Scrolling to trigger content loading...")
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)
-            driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(3)
-            
-            # Wait for plan cards section
-            wait = WebDriverWait(driver, 30)
-            try:
-                wait.until(EC.presence_of_element_located((By.ID, "planCards")))
-            except:
-                print(f"[HighlandHomesEdgewaterPlanScraper] Waiting for planCards section...")
-                time.sleep(5)
-            
-            # Get the page source after JavaScript has loaded
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            
-            # Find the plan cards section
-            plan_section = soup.find('section', id='planCards')
-            if not plan_section:
-                print(f"[HighlandHomesEdgewaterPlanScraper] No planCards section found")
-                return []
-            
-            # Find all plan cards
-            plan_cards = plan_section.find_all('a', class_='home-container homePlan')
-            print(f"[HighlandHomesEdgewaterPlanScraper] Found {len(plan_cards)} plan cards")
-            
             all_plans = []
             seen_plan_names = set()
+            
+            for url_idx, url in enumerate(self.URLS, 1):
+                try:
+                    print(f"[HighlandHomesEdgewaterPlanScraper] Fetching URL {url_idx}: {url}")
+                    driver.get(url)
+                    
+                    # Wait for the page to load and Cloudflare to pass
+                    print(f"[HighlandHomesEdgewaterPlanScraper] Waiting for page to load...")
+                    time.sleep(15)  # Extra time for Cloudflare
+                    
+                    # Scroll to trigger content loading
+                    print(f"[HighlandHomesEdgewaterPlanScraper] Scrolling to trigger content loading...")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(5)
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(3)
+                    
+                    # Wait for plan cards section
+                    wait = WebDriverWait(driver, 30)
+                    try:
+                        wait.until(EC.presence_of_element_located((By.ID, "planCards")))
+                    except:
+                        print(f"[HighlandHomesEdgewaterPlanScraper] Waiting for planCards section...")
+                        time.sleep(5)
+                    
+                    # Get the page source after JavaScript has loaded
+                    soup = BeautifulSoup(driver.page_source, 'html.parser')
+                    
+                    # Find the plan cards section
+                    plan_section = soup.find('section', id='planCards')
+                    if not plan_section:
+                        print(f"[HighlandHomesEdgewaterPlanScraper] No planCards section found for URL {url_idx}")
+                        continue
+                    
+                    # Find all plan cards - search for <a> tags that have both 'home-container' and 'homePlan' classes
+                    plan_cards = []
+                    all_links = plan_section.find_all('a')
+                    for link in all_links:
+                        classes = link.get('class', [])
+                        if isinstance(classes, list):
+                            if 'home-container' in classes and 'homePlan' in classes:
+                                plan_cards.append(link)
+                        elif isinstance(classes, str):
+                            if 'home-container' in classes and 'homePlan' in classes:
+                                plan_cards.append(link)
+                    
+                    print(f"[HighlandHomesEdgewaterPlanScraper] Found {len(plan_cards)} plan cards for URL {url_idx}")
             
             for idx, card in enumerate(plan_cards):
                 try:
@@ -258,6 +273,12 @@ class HighlandHomesEdgewaterPlanScraper(BaseScraper):
                     
                 except Exception as e:
                     print(f"[HighlandHomesEdgewaterPlanScraper] Error processing plan {idx+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
+                
+                except Exception as e:
+                    print(f"[HighlandHomesEdgewaterPlanScraper] Error fetching URL {url_idx}: {e}")
                     import traceback
                     traceback.print_exc()
                     continue

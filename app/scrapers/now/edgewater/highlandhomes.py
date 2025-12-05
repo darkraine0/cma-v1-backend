@@ -11,7 +11,10 @@ from typing import List, Dict
 
 
 class HighlandHomesEdgewaterNowScraper(BaseScraper):
-    URL = "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/70ft-lots/section"
+    URLS = [
+        "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/70ft-lots/section",
+        "https://www.highlandhomes.com/dfw/mclendon-chisholm/sonoma-verde/60ft-lots/section"
+    ]
     
     def parse_price(self, text):
         """Extract price from text."""
@@ -85,231 +88,236 @@ class HighlandHomesEdgewaterNowScraper(BaseScraper):
             
             driver = webdriver.Chrome(options=chrome_options)
             
-            print(f"[HighlandHomesEdgewaterNowScraper] Fetching URL: {self.URL}")
-            driver.get(self.URL)
-            
-            # Wait for the page to load and Cloudflare to pass
-            print(f"[HighlandHomesEdgewaterNowScraper] Waiting for page to load...")
-            time.sleep(15)  # Extra time for Cloudflare
-            
-            # Scroll to trigger content loading
-            print(f"[HighlandHomesEdgewaterNowScraper] Scrolling to trigger content loading...")
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)
-            driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(3)
-            
-            # Wait for quick move-in container
-            wait = WebDriverWait(driver, 30)
-            try:
-                wait.until(EC.presence_of_element_located((By.ID, "moveInReadyContainer")))
-            except:
-                print(f"[HighlandHomesEdgewaterNowScraper] Waiting for moveInReadyContainer...")
-                time.sleep(5)
-            
-            # Get the page source after JavaScript has loaded
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            
-            # Find the quick move-in section
-            move_in_section = soup.find('section', class_=lambda x: x and 'alternate' in x and 'extra_padding_top' in x)
-            if not move_in_section:
-                print(f"[HighlandHomesEdgewaterNowScraper] No quick move-in section found")
-                return []
-            
-            # Find the container with home listings
-            container = move_in_section.find('div', id='moveInReadyContainer')
-            if not container:
-                print(f"[HighlandHomesEdgewaterNowScraper] No moveInReadyContainer found")
-                return []
-            
-            # Find all home cards - search for <a> tags that have both 'home-container' and 'homeSpec' classes
-            # The cards are nested inside div.column-block elements
-            home_cards = []
-            
-            # Method 1: Find by class matching (both classes must be present)
-            all_links = container.find_all('a')
-            for link in all_links:
-                classes = link.get('class', [])
-                if isinstance(classes, list):
-                    if 'home-container' in classes and 'homeSpec' in classes:
-                        home_cards.append(link)
-                elif isinstance(classes, str):
-                    if 'home-container' in classes and 'homeSpec' in classes:
-                        home_cards.append(link)
-            
-            print(f"[HighlandHomesEdgewaterNowScraper] Found {len(home_cards)} home cards")
-            
-            # If no cards found, try finding by href pattern (fallback)
-            if len(home_cards) == 0:
-                print(f"[HighlandHomesEdgewaterNowScraper] Trying href pattern selector as fallback...")
-                home_cards = container.find_all('a', href=re.compile(r'/dfw/mclendon-chisholm/sonoma-verde/\d+'))
-                print(f"[HighlandHomesEdgewaterNowScraper] Found {len(home_cards)} home cards with href pattern")
-            
             all_listings = []
             seen_addresses = set()
             
-            for idx, card in enumerate(home_cards):
+            for url_idx, url in enumerate(self.URLS, 1):
                 try:
-                    # Extract address
-                    address_elem = card.find('span', class_='homeIdentifier')
-                    if not address_elem:
+                    print(f"[HighlandHomesEdgewaterNowScraper] Fetching URL {url_idx}: {url}")
+                    driver.get(url)
+                    
+                    # Wait for the page to load and Cloudflare to pass
+                    print(f"[HighlandHomesEdgewaterNowScraper] Waiting for page to load...")
+                    time.sleep(15)  # Extra time for Cloudflare
+                    
+                    # Scroll to trigger content loading
+                    print(f"[HighlandHomesEdgewaterNowScraper] Scrolling to trigger content loading...")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(5)
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(3)
+                    
+                    # Wait for quick move-in container
+                    wait = WebDriverWait(driver, 30)
+                    try:
+                        wait.until(EC.presence_of_element_located((By.ID, "moveInReadyContainer")))
+                    except:
+                        print(f"[HighlandHomesEdgewaterNowScraper] Waiting for moveInReadyContainer...")
+                        time.sleep(5)
+                    
+                    # Get the page source after JavaScript has loaded
+                    soup = BeautifulSoup(driver.page_source, 'html.parser')
+                    
+                    # Find the quick move-in section
+                    move_in_section = soup.find('section', class_=lambda x: x and 'alternate' in x and 'extra_padding_top' in x)
+                    if not move_in_section:
+                        print(f"[HighlandHomesEdgewaterNowScraper] No quick move-in section found for URL {url_idx}")
                         continue
                     
-                    address = address_elem.get_text(strip=True)
-                    if not address:
+                    # Find the container with home listings
+                    container = move_in_section.find('div', id='moveInReadyContainer')
+                    if not container:
+                        print(f"[HighlandHomesEdgewaterNowScraper] No moveInReadyContainer found for URL {url_idx}")
                         continue
                     
-                    # Check for duplicate addresses
-                    if address in seen_addresses:
-                        print(f"[HighlandHomesEdgewaterNowScraper] Skipping duplicate address: {address}")
-                        continue
-                    seen_addresses.add(address)
+                    # Find all home cards - search for <a> tags that have both 'home-container' and 'homeSpec' classes
+                    home_cards = []
+                    all_links = container.find_all('a')
+                    for link in all_links:
+                        classes = link.get('class', [])
+                        if isinstance(classes, list):
+                            if 'home-container' in classes and 'homeSpec' in classes:
+                                home_cards.append(link)
+                        elif isinstance(classes, str):
+                            if 'home-container' in classes and 'homeSpec' in classes:
+                                home_cards.append(link)
                     
-                    # Extract plan name
-                    plan_name = ""
-                    plan_elem = card.find('p', class_='homeUpgrades')
-                    if plan_elem:
-                        plan_text = plan_elem.get_text(strip=True)
-                        # Extract plan name - format is "PlanName Plan with X upgrades"
-                        # We want "PlanName Plan"
-                        plan_match = re.search(r'^(.+?)\s+Plan\s+(?:with|$)', plan_text)
-                        if plan_match:
-                            plan_name = plan_match.group(1).strip() + " Plan"
-                        else:
-                            # Fallback: take everything before "with"
-                            if ' with ' in plan_text:
-                                plan_name = plan_text.split(' with ')[0].strip()
-                            else:
-                                plan_name = plan_text.strip()
+                    print(f"[HighlandHomesEdgewaterNowScraper] Found {len(home_cards)} home cards for URL {url_idx}")
                     
-                    # Extract price
-                    price = None
-                    price_elem = card.find('span', class_='price')
-                    if price_elem:
-                        price_text = price_elem.get_text(strip=True)
-                        price = self.parse_price(price_text)
+                    # If no cards found, try finding by href pattern (fallback)
+                    if len(home_cards) == 0:
+                        print(f"[HighlandHomesEdgewaterNowScraper] Trying href pattern selector as fallback...")
+                        home_cards = container.find_all('a', href=re.compile(r'/dfw/mclendon-chisholm/sonoma-verde/'))
+                        print(f"[HighlandHomesEdgewaterNowScraper] Found {len(home_cards)} home cards with href pattern")
                     
-                    # Extract square footage
-                    sqft = None
-                    sqft_elem = card.find('div', class_='homeSqFootage')
-                    if sqft_elem:
-                        numeral_elem = sqft_elem.find('span', class_='numeral')
-                        if numeral_elem:
-                            sqft_text = numeral_elem.get_text(strip=True)
-                            sqft = self.parse_sqft(sqft_text)
-                    
-                    if not price or not sqft:
-                        print(f"[HighlandHomesEdgewaterNowScraper] Skipping listing {idx+1}: Missing price or sqft")
-                        continue
-                    
-                    # Extract beds
-                    beds = ""
-                    beds_elem = card.find('span', class_='label', string=re.compile('beds', re.I))
-                    if beds_elem:
-                        beds_parent = beds_elem.find_parent('div', class_='homeDetailItem')
-                        if beds_parent:
-                            numeral_elem = beds_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                beds_text = numeral_elem.get_text(strip=True)
-                                beds = self.parse_beds(beds_text)
-                    
-                    # Extract baths (format like "4/2")
-                    baths = ""
-                    baths_elem = card.find('span', class_='label', string=re.compile('baths', re.I))
-                    if baths_elem:
-                        baths_parent = baths_elem.find_parent('div', class_='homeDetailItem')
-                        if baths_parent:
-                            numeral_elem = baths_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                baths_text = numeral_elem.get_text(strip=True)
-                                baths = self.parse_baths(baths_text)
-                    
-                    # Extract stories
-                    stories = ""
-                    stories_elem = card.find('span', class_='label', string=re.compile('stories', re.I))
-                    if stories_elem:
-                        stories_parent = stories_elem.find_parent('div', class_='homeDetailItem')
-                        if stories_parent:
-                            numeral_elem = stories_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                stories = numeral_elem.get_text(strip=True)
-                    
-                    # Extract garages
-                    garage = ""
-                    garage_elem = card.find('span', class_='label', string=re.compile('garages', re.I))
-                    if garage_elem:
-                        garage_parent = garage_elem.find_parent('div', class_='homeDetailItem')
-                        if garage_parent:
-                            numeral_elem = garage_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                garage_text = numeral_elem.get_text(strip=True)
-                                garage = self.parse_garage(garage_text)
-                    
-                    # Extract status
-                    status = "Available"
-                    # Look for span with 'home-tag' class that also has 'completed-home' class
-                    status_elem = card.find('span', class_=lambda x: x and 'home-tag' in x and 'completed-home' in x)
-                    if not status_elem:
-                        # Fallback: just look for completed-home
-                        status_elem = card.find('span', class_=lambda x: x and 'completed-home' in x)
-                    if status_elem:
-                        status_text = status_elem.get_text(strip=True)
-                        status = self.parse_status(status_text)
-                    
-                    # Extract image URL
-                    image_url = ""
-                    img_tag = card.find('img')
-                    if img_tag:
-                        img_src = img_tag.get('src') or img_tag.get('data-src')
-                        if img_src:
-                            if img_src.startswith('//'):
-                                image_url = f"https:{img_src}"
-                            elif img_src.startswith('/'):
-                                image_url = f"https://www.highlandhomes.com{img_src}"
-                            else:
-                                image_url = img_src
-                    
-                    # Extract detail link
-                    detail_link = ""
-                    href = card.get('href')
-                    if href:
-                        if href.startswith('/'):
-                            detail_link = f"https://www.highlandhomes.com{href}"
-                        elif href.startswith('http'):
-                            detail_link = href
-                        else:
-                            detail_link = f"https://www.highlandhomes.com/{href}"
-                    
-                    # Calculate price per sqft
-                    price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
-                    
-                    listing_data = {
-                        "price": price,
-                        "sqft": sqft,
-                        "stories": stories,
-                        "price_per_sqft": price_per_sqft,
-                        "plan_name": plan_name or address,
-                        "company": "HighlandHomes",
-                        "community": "Edgewater",
-                        "type": "now",
-                        "beds": beds,
-                        "baths": baths,
-                        "address": address,
-                        "original_price": None,
-                        "price_cut": "",
-                        "status": status,
-                        "mls": "",
-                        "sub_community": "",
-                        "image_url": image_url,
-                        "detail_link": detail_link,
-                        "garage": garage
-                    }
-                    
-                    print(f"[HighlandHomesEdgewaterNowScraper] Home {idx+1}: {address} - {plan_name} - ${price:,} - {sqft} sqft - {status}")
-                    all_listings.append(listing_data)
-                    
+                    for idx, card in enumerate(home_cards):
+                        try:
+                            # Extract address
+                            address_elem = card.find('span', class_='homeIdentifier')
+                            if not address_elem:
+                                continue
+                            
+                            address = address_elem.get_text(strip=True)
+                            if not address:
+                                continue
+                            
+                            # Check for duplicate addresses
+                            if address in seen_addresses:
+                                print(f"[HighlandHomesEdgewaterNowScraper] Skipping duplicate address: {address}")
+                                continue
+                            seen_addresses.add(address)
+                            
+                            # Extract plan name
+                            plan_name = ""
+                            plan_elem = card.find('p', class_='homeUpgrades')
+                            if plan_elem:
+                                plan_text = plan_elem.get_text(strip=True)
+                                # Extract plan name - format is "PlanName Plan with X upgrades"
+                                # We want "PlanName Plan"
+                                plan_match = re.search(r'^(.+?)\s+Plan\s+(?:with|$)', plan_text)
+                                if plan_match:
+                                    plan_name = plan_match.group(1).strip() + " Plan"
+                                else:
+                                    # Fallback: take everything before "with"
+                                    if ' with ' in plan_text:
+                                        plan_name = plan_text.split(' with ')[0].strip()
+                                    else:
+                                        plan_name = plan_text.strip()
+                            
+                            # Extract price
+                            price = None
+                            price_elem = card.find('span', class_='price')
+                            if price_elem:
+                                price_text = price_elem.get_text(strip=True)
+                                price = self.parse_price(price_text)
+                            
+                            # Extract square footage
+                            sqft = None
+                            sqft_elem = card.find('div', class_='homeSqFootage')
+                            if sqft_elem:
+                                numeral_elem = sqft_elem.find('span', class_='numeral')
+                                if numeral_elem:
+                                    sqft_text = numeral_elem.get_text(strip=True)
+                                    sqft = self.parse_sqft(sqft_text)
+                            
+                            if not price or not sqft:
+                                print(f"[HighlandHomesEdgewaterNowScraper] Skipping listing {idx+1}: Missing price or sqft")
+                                continue
+                            
+                            # Extract beds
+                            beds = ""
+                            beds_elem = card.find('span', class_='label', string=re.compile('beds', re.I))
+                            if beds_elem:
+                                beds_parent = beds_elem.find_parent('div', class_='homeDetailItem')
+                                if beds_parent:
+                                    numeral_elem = beds_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        beds_text = numeral_elem.get_text(strip=True)
+                                        beds = self.parse_beds(beds_text)
+                            
+                            # Extract baths (format like "4/2")
+                            baths = ""
+                            baths_elem = card.find('span', class_='label', string=re.compile('baths', re.I))
+                            if baths_elem:
+                                baths_parent = baths_elem.find_parent('div', class_='homeDetailItem')
+                                if baths_parent:
+                                    numeral_elem = baths_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        baths_text = numeral_elem.get_text(strip=True)
+                                        baths = self.parse_baths(baths_text)
+                            
+                            # Extract stories
+                            stories = ""
+                            stories_elem = card.find('span', class_='label', string=re.compile('stories', re.I))
+                            if stories_elem:
+                                stories_parent = stories_elem.find_parent('div', class_='homeDetailItem')
+                                if stories_parent:
+                                    numeral_elem = stories_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        stories = numeral_elem.get_text(strip=True)
+                            
+                            # Extract garages
+                            garage = ""
+                            garage_elem = card.find('span', class_='label', string=re.compile('garages', re.I))
+                            if garage_elem:
+                                garage_parent = garage_elem.find_parent('div', class_='homeDetailItem')
+                                if garage_parent:
+                                    numeral_elem = garage_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        garage_text = numeral_elem.get_text(strip=True)
+                                        garage = self.parse_garage(garage_text)
+                            
+                            # Extract status
+                            status = "Available"
+                            # Look for span with 'home-tag' class that also has 'completed-home' class
+                            status_elem = card.find('span', class_=lambda x: x and 'home-tag' in x and 'completed-home' in x)
+                            if not status_elem:
+                                # Fallback: just look for completed-home
+                                status_elem = card.find('span', class_=lambda x: x and 'completed-home' in x)
+                            if status_elem:
+                                status_text = status_elem.get_text(strip=True)
+                                status = self.parse_status(status_text)
+                            
+                            # Extract image URL
+                            image_url = ""
+                            img_tag = card.find('img')
+                            if img_tag:
+                                img_src = img_tag.get('src') or img_tag.get('data-src')
+                                if img_src:
+                                    if img_src.startswith('//'):
+                                        image_url = f"https:{img_src}"
+                                    elif img_src.startswith('/'):
+                                        image_url = f"https://www.highlandhomes.com{img_src}"
+                                    else:
+                                        image_url = img_src
+                            
+                            # Extract detail link
+                            detail_link = ""
+                            href = card.get('href')
+                            if href:
+                                if href.startswith('/'):
+                                    detail_link = f"https://www.highlandhomes.com{href}"
+                                elif href.startswith('http'):
+                                    detail_link = href
+                                else:
+                                    detail_link = f"https://www.highlandhomes.com/{href}"
+                            
+                            # Calculate price per sqft
+                            price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
+                            
+                            listing_data = {
+                                "price": price,
+                                "sqft": sqft,
+                                "stories": stories,
+                                "price_per_sqft": price_per_sqft,
+                                "plan_name": plan_name or address,
+                                "company": "HighlandHomes",
+                                "community": "Edgewater",
+                                "type": "now",
+                                "beds": beds,
+                                "baths": baths,
+                                "address": address,
+                                "original_price": None,
+                                "price_cut": "",
+                                "status": status,
+                                "mls": "",
+                                "sub_community": "",
+                                "image_url": image_url,
+                                "detail_link": detail_link,
+                                "garage": garage
+                            }
+                            
+                            print(f"[HighlandHomesEdgewaterNowScraper] Home {idx+1}: {address} - {plan_name} - ${price:,} - {sqft} sqft - {status}")
+                            all_listings.append(listing_data)
+                            
+                        except Exception as e:
+                            print(f"[HighlandHomesEdgewaterNowScraper] Error processing listing {idx+1}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            continue
+                
                 except Exception as e:
-                    print(f"[HighlandHomesEdgewaterNowScraper] Error processing listing {idx+1}: {e}")
+                    print(f"[HighlandHomesEdgewaterNowScraper] Error fetching URL {url_idx}: {e}")
                     import traceback
                     traceback.print_exc()
                     continue
