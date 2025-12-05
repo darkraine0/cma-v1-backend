@@ -136,146 +136,146 @@ class HighlandHomesEdgewaterPlanScraper(BaseScraper):
                                 plan_cards.append(link)
                     
                     print(f"[HighlandHomesEdgewaterPlanScraper] Found {len(plan_cards)} plan cards for URL {url_idx}")
-            
-            for idx, card in enumerate(plan_cards):
-                try:
-                    # Extract plan name
-                    plan_name_elem = card.find('span', class_='homeIdentifier')
-                    if not plan_name_elem:
-                        continue
                     
-                    plan_name = plan_name_elem.get_text(strip=True)
-                    if not plan_name:
-                        continue
-                    
-                    # Check for duplicate plan names
-                    if plan_name in seen_plan_names:
-                        print(f"[HighlandHomesEdgewaterPlanScraper] Skipping duplicate plan: {plan_name}")
-                        continue
-                    seen_plan_names.add(plan_name)
-                    
-                    # Extract starting price
-                    price = None
-                    price_elem = card.find('span', class_='price')
-                    if price_elem:
-                        price_text = price_elem.get_text(strip=True)
-                        price = self.parse_price(price_text)
-                    
-                    # Extract square footage (range)
-                    sqft = None
-                    sqft_elem = card.find('span', class_='label', string=re.compile('sq ft', re.I))
-                    if sqft_elem:
-                        sqft_parent = sqft_elem.find_parent('div', class_='homeDetailItem')
-                        if sqft_parent:
-                            numeral_elem = sqft_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                sqft_text = numeral_elem.get_text(strip=True)
-                                sqft = self.parse_sqft_range(sqft_text)
-                    
-                    if not price or not sqft:
-                        print(f"[HighlandHomesEdgewaterPlanScraper] Skipping plan {idx+1}: Missing price or sqft")
-                        continue
-                    
-                    # Extract beds (can be range like "3-4")
-                    beds = ""
-                    beds_elem = card.find('span', class_='label', string=re.compile('beds', re.I))
-                    if beds_elem:
-                        beds_parent = beds_elem.find_parent('div', class_='homeDetailItem')
-                        if beds_parent:
-                            numeral_elem = beds_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                beds_text = numeral_elem.get_text(strip=True)
-                                beds = self.parse_beds(beds_text)
-                    
-                    # Extract full baths (can be range like "3-4")
-                    baths = ""
-                    full_baths_elem = card.find('span', class_='label', string=re.compile('full baths', re.I))
-                    if full_baths_elem:
-                        baths_parent = full_baths_elem.find_parent('div', class_='homeDetailItem')
-                        if baths_parent:
-                            numeral_elem = baths_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                baths_text = numeral_elem.get_text(strip=True)
-                                baths = self.parse_baths(baths_text)
-                    
-                    # Extract stories
-                    stories = ""
-                    stories_elem = card.find('span', class_='label', string=re.compile('stories', re.I))
-                    if stories_elem:
-                        stories_parent = stories_elem.find_parent('div', class_='homeDetailItem')
-                        if stories_parent:
-                            numeral_elem = stories_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                stories = numeral_elem.get_text(strip=True)
-                    
-                    # Extract garages
-                    garage = ""
-                    garage_elem = card.find('span', class_='label', string=re.compile('garages', re.I))
-                    if garage_elem:
-                        garage_parent = garage_elem.find_parent('div', class_='homeDetailItem')
-                        if garage_parent:
-                            numeral_elem = garage_parent.find('span', class_='numeral')
-                            if numeral_elem:
-                                garage_text = numeral_elem.get_text(strip=True)
-                                garage = self.parse_garage(garage_text)
-                    
-                    # Extract image URL
-                    image_url = ""
-                    img_tag = card.find('img', class_='homePlan_ifp')
-                    if img_tag:
-                        img_src = img_tag.get('data-src') or img_tag.get('src')
-                        if img_src:
-                            if img_src.startswith('//'):
-                                image_url = f"https:{img_src}"
-                            elif img_src.startswith('/'):
-                                image_url = f"https://www.highlandhomes.com{img_src}"
-                            else:
-                                image_url = img_src
-                    
-                    # Extract detail link
-                    detail_link = ""
-                    href = card.get('href')
-                    if href:
-                        if href.startswith('/'):
-                            detail_link = f"https://www.highlandhomes.com{href}"
-                        elif href.startswith('http'):
-                            detail_link = href
-                        else:
-                            detail_link = f"https://www.highlandhomes.com/{href}"
-                    
-                    # Calculate price per sqft
-                    price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
-                    
-                    plan_data = {
-                        "price": price,
-                        "sqft": sqft,
-                        "stories": stories,
-                        "price_per_sqft": price_per_sqft,
-                        "plan_name": plan_name,
-                        "company": "HighlandHomes",
-                        "community": "Edgewater",
-                        "type": "plan",
-                        "beds": beds,
-                        "baths": baths,
-                        "address": plan_name,  # Use plan name as address for plans
-                        "original_price": None,
-                        "price_cut": "",
-                        "status": "",
-                        "mls": "",
-                        "sub_community": "",
-                        "image_url": image_url,
-                        "detail_link": detail_link,
-                        "garage": garage
-                    }
-                    
-                    print(f"[HighlandHomesEdgewaterPlanScraper] Plan {idx+1}: {plan_name} - ${price:,} - {sqft} sqft")
-                    all_plans.append(plan_data)
-                    
-                except Exception as e:
-                    print(f"[HighlandHomesEdgewaterPlanScraper] Error processing plan {idx+1}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue
+                    for idx, card in enumerate(plan_cards):
+                        try:
+                            # Extract plan name
+                            plan_name_elem = card.find('span', class_='homeIdentifier')
+                            if not plan_name_elem:
+                                continue
+                            
+                            plan_name = plan_name_elem.get_text(strip=True)
+                            if not plan_name:
+                                continue
+                            
+                            # Check for duplicate plan names
+                            if plan_name in seen_plan_names:
+                                print(f"[HighlandHomesEdgewaterPlanScraper] Skipping duplicate plan: {plan_name}")
+                                continue
+                            seen_plan_names.add(plan_name)
+                            
+                            # Extract starting price
+                            price = None
+                            price_elem = card.find('span', class_='price')
+                            if price_elem:
+                                price_text = price_elem.get_text(strip=True)
+                                price = self.parse_price(price_text)
+                            
+                            # Extract square footage (range)
+                            sqft = None
+                            sqft_elem = card.find('span', class_='label', string=re.compile('sq ft', re.I))
+                            if sqft_elem:
+                                sqft_parent = sqft_elem.find_parent('div', class_='homeDetailItem')
+                                if sqft_parent:
+                                    numeral_elem = sqft_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        sqft_text = numeral_elem.get_text(strip=True)
+                                        sqft = self.parse_sqft_range(sqft_text)
+                            
+                            if not price or not sqft:
+                                print(f"[HighlandHomesEdgewaterPlanScraper] Skipping plan {idx+1}: Missing price or sqft")
+                                continue
+                            
+                            # Extract beds (can be range like "3-4")
+                            beds = ""
+                            beds_elem = card.find('span', class_='label', string=re.compile('beds', re.I))
+                            if beds_elem:
+                                beds_parent = beds_elem.find_parent('div', class_='homeDetailItem')
+                                if beds_parent:
+                                    numeral_elem = beds_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        beds_text = numeral_elem.get_text(strip=True)
+                                        beds = self.parse_beds(beds_text)
+                            
+                            # Extract full baths (can be range like "3-4")
+                            baths = ""
+                            full_baths_elem = card.find('span', class_='label', string=re.compile('full baths', re.I))
+                            if full_baths_elem:
+                                baths_parent = full_baths_elem.find_parent('div', class_='homeDetailItem')
+                                if baths_parent:
+                                    numeral_elem = baths_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        baths_text = numeral_elem.get_text(strip=True)
+                                        baths = self.parse_baths(baths_text)
+                            
+                            # Extract stories
+                            stories = ""
+                            stories_elem = card.find('span', class_='label', string=re.compile('stories', re.I))
+                            if stories_elem:
+                                stories_parent = stories_elem.find_parent('div', class_='homeDetailItem')
+                                if stories_parent:
+                                    numeral_elem = stories_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        stories = numeral_elem.get_text(strip=True)
+                            
+                            # Extract garages
+                            garage = ""
+                            garage_elem = card.find('span', class_='label', string=re.compile('garages', re.I))
+                            if garage_elem:
+                                garage_parent = garage_elem.find_parent('div', class_='homeDetailItem')
+                                if garage_parent:
+                                    numeral_elem = garage_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        garage_text = numeral_elem.get_text(strip=True)
+                                        garage = self.parse_garage(garage_text)
+                            
+                            # Extract image URL
+                            image_url = ""
+                            img_tag = card.find('img', class_='homePlan_ifp')
+                            if img_tag:
+                                img_src = img_tag.get('data-src') or img_tag.get('src')
+                                if img_src:
+                                    if img_src.startswith('//'):
+                                        image_url = f"https:{img_src}"
+                                    elif img_src.startswith('/'):
+                                        image_url = f"https://www.highlandhomes.com{img_src}"
+                                    else:
+                                        image_url = img_src
+                            
+                            # Extract detail link
+                            detail_link = ""
+                            href = card.get('href')
+                            if href:
+                                if href.startswith('/'):
+                                    detail_link = f"https://www.highlandhomes.com{href}"
+                                elif href.startswith('http'):
+                                    detail_link = href
+                                else:
+                                    detail_link = f"https://www.highlandhomes.com/{href}"
+                            
+                            # Calculate price per sqft
+                            price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
+                            
+                            plan_data = {
+                                "price": price,
+                                "sqft": sqft,
+                                "stories": stories,
+                                "price_per_sqft": price_per_sqft,
+                                "plan_name": plan_name,
+                                "company": "HighlandHomes",
+                                "community": "Edgewater",
+                                "type": "plan",
+                                "beds": beds,
+                                "baths": baths,
+                                "address": plan_name,  # Use plan name as address for plans
+                                "original_price": None,
+                                "price_cut": "",
+                                "status": "",
+                                "mls": "",
+                                "sub_community": "",
+                                "image_url": image_url,
+                                "detail_link": detail_link,
+                                "garage": garage
+                            }
+                            
+                            print(f"[HighlandHomesEdgewaterPlanScraper] Plan {idx+1}: {plan_name} - ${price:,} - {sqft} sqft")
+                            all_plans.append(plan_data)
+                            
+                        except Exception as e:
+                            print(f"[HighlandHomesEdgewaterPlanScraper] Error processing plan {idx+1}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            continue
                 
                 except Exception as e:
                     print(f"[HighlandHomesEdgewaterPlanScraper] Error fetching URL {url_idx}: {e}")

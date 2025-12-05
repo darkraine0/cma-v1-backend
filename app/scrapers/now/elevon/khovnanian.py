@@ -5,7 +5,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class KHovnanianElevonNowScraper(BaseScraper):
-    URL = "https://www.khov.com/new-construction-homes/texas/lavon/elevon/#quick-move-ins"
+    URL = "https://www.khov.com/new-construction-homes/texas/lavon/elevon/"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
