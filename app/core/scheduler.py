@@ -27,8 +27,10 @@ from app.scrapers.now.cambridge.williamryanhomes import WilliamRyanHomesCambridg
 from app.scrapers.now.milrany.unionmain import UnionMainMilranyNowScraper
 from app.scrapers.now.milrany.bloomfield import BloomfieldMilranyNowScraper
 from app.scrapers.now.milrany.pacesetter import PacesetterMilranyNowScraper
+from app.scrapers.now.milrany.firsttexashomes import FirstTexasHomesMilranyNowScraper
 from app.scrapers.plans.milrany.unionmain import UnionMainMilranyPlanScraper
 from app.scrapers.plans.milrany.pacesetter import PacesetterMilranyPlanScraper
+from app.scrapers.plans.milrany.firsttexashomes import FirstTexasHomesMilranyPlanScraper
 from app.scrapers.plans.cambridge.unionmain import UnionMainCambridgePlanScraper
 from app.scrapers.plans.cambridge.coventry import CoventryCambridgePlanScraper
 from app.scrapers.plans.cambridge.highlandhomes import HighlandHomesCambridgePlanScraper
@@ -185,12 +187,14 @@ class ScraperScheduler:
             # BrightlandHomesCambridgeNowScraper(),
             # CastlerockCambridgeNowScraper(),
             # ShaddockHomesCambridgeNowScraper(),
-            WilliamRyanHomesCambridgeNowScraper(),
+            # WilliamRyanHomesCambridgeNowScraper(),
             # UnionMainMilranyNowScraper(),
             # BloomfieldMilranyNowScraper(),
             # PacesetterMilranyNowScraper(),
+            FirstTexasHomesMilranyNowScraper(),
             # UnionMainMilranyPlanScraper(),
             # PacesetterMilranyPlanScraper(),
+            FirstTexasHomesMilranyPlanScraper(),
             # UnionMainCambridgePlanScraper(),
             # CoventryCambridgePlanScraper(),
             # HighlandHomesCambridgePlanScraper(),
@@ -198,7 +202,7 @@ class ScraperScheduler:
             # BrightlandHomesCambridgePlanScraper(),
             # CastlerockCambridgePlanScraper(),
             # ShaddockHomesCambridgePlanScraper(),
-            WilliamRyanHomesCambridgePlanScraper(),
+            # WilliamRyanHomesCambridgePlanScraper(),
             # BeazerHomesBrookvilleNowScraper(),
             # TrophySignatureBrookvilleNowScraper(),
             # HighlandHomesBrookvilleNowScraper(),
