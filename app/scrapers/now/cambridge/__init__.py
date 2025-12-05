@@ -5,4 +5,5 @@ from .amlegendhomes import AmericanLegendHomesCambridgeNowScraper
 from .trophysignature import TrophySignatureCambridgeNowScraper
 from .brightlandhomes import BrightlandHomesCambridgeNowScraper
 from .castlerock import CastlerockCambridgeNowScraper
-from .shaddockhomes import ShaddockHomesCambridgeNowScraper 
+from .shaddockhomes import ShaddockHomesCambridgeNowScraper
+from .williamryanhomes import WilliamRyanHomesCambridgeNowScraper 

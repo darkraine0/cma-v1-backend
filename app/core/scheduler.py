@@ -23,6 +23,7 @@ from app.scrapers.plans.cambridge.trophysignature import TrophySignatureCambridg
 from app.scrapers.now.cambridge.brightlandhomes import BrightlandHomesCambridgeNowScraper
 from app.scrapers.now.cambridge.castlerock import CastlerockCambridgeNowScraper
 from app.scrapers.now.cambridge.shaddockhomes import ShaddockHomesCambridgeNowScraper
+from app.scrapers.now.cambridge.williamryanhomes import WilliamRyanHomesCambridgeNowScraper
 from app.scrapers.now.milrany.unionmain import UnionMainMilranyNowScraper
 from app.scrapers.now.milrany.bloomfield import BloomfieldMilranyNowScraper
 from app.scrapers.now.milrany.pacesetter import PacesetterMilranyNowScraper
@@ -35,6 +36,7 @@ from app.scrapers.plans.cambridge.amlegendhomes import AmericanLegendHomesCambri
 from app.scrapers.plans.cambridge.brightlandhomes import BrightlandHomesCambridgePlanScraper
 from app.scrapers.plans.cambridge.castlerock import CastlerockCambridgePlanScraper
 from app.scrapers.plans.cambridge.shaddockhomes import ShaddockHomesCambridgePlanScraper
+from app.scrapers.plans.cambridge.williamryanhomes import WilliamRyanHomesCambridgePlanScraper
 from app.scrapers.now.brookville.beazerhomes import BeazerHomesBrookvilleNowScraper
 from app.scrapers.now.brookville.trophysignature import TrophySignatureBrookvilleNowScraper
 from app.scrapers.now.brookville.highlandhomes import HighlandHomesBrookvilleNowScraper
@@ -182,6 +184,8 @@ class ScraperScheduler:
             # TrophySignatureCambridgePlanScraper(),
             # BrightlandHomesCambridgeNowScraper(),
             # CastlerockCambridgeNowScraper(),
+            # ShaddockHomesCambridgeNowScraper(),
+            WilliamRyanHomesCambridgeNowScraper(),
             # UnionMainMilranyNowScraper(),
             # BloomfieldMilranyNowScraper(),
             # PacesetterMilranyNowScraper(),
@@ -193,6 +197,8 @@ class ScraperScheduler:
             # AmericanLegendHomesCambridgePlanScraper(),
             # BrightlandHomesCambridgePlanScraper(),
             # CastlerockCambridgePlanScraper(),
+            # ShaddockHomesCambridgePlanScraper(),
+            WilliamRyanHomesCambridgePlanScraper(),
             # BeazerHomesBrookvilleNowScraper(),
             # TrophySignatureBrookvilleNowScraper(),
             # HighlandHomesBrookvilleNowScraper(),
