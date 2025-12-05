@@ -51,8 +51,10 @@ from app.scrapers.now.edgewater.unionmain import UnionMainEdgewaterNowScraper
 from app.scrapers.now.edgewater.perryhomes import PerryHomesEdgewaterNowScraper
 from app.scrapers.now.edgewater.coventryhomes import CoventryHomesEdgewaterNowScraper
 from app.scrapers.now.edgewater.chesmarhomes import ChesmarHomesEdgewaterNowScraper
+from app.scrapers.now.edgewater.grandhomes import GrandHomesEdgewaterNowScraper
 from app.scrapers.plans.edgewater.unionmain import UnionMainEdgewaterPlanScraper
 from app.scrapers.plans.edgewater.coventryhomes import CoventryHomesEdgewaterPlanScraper
+from app.scrapers.plans.edgewater.grandhomes import GrandHomesEdgewaterPlanScraper
 from app.scrapers.now.creekside.unionmainhomes import UnionMainCreeksideNowScraper
 from app.scrapers.now.creekside.highlandhomes import HighlandHomesCreeksideNowScraper
 from app.scrapers.now.creekside.davidweekleyhomes import DavidWeekleyHomesCreeksideNowScraper
@@ -191,10 +193,10 @@ class ScraperScheduler:
             # UnionMainMilranyNowScraper(),
             # BloomfieldMilranyNowScraper(),
             # PacesetterMilranyNowScraper(),
-            FirstTexasHomesMilranyNowScraper(),
+            # FirstTexasHomesMilranyNowScraper(),
             # UnionMainMilranyPlanScraper(),
             # PacesetterMilranyPlanScraper(),
-            FirstTexasHomesMilranyPlanScraper(),
+            # FirstTexasHomesMilranyPlanScraper(),
             # UnionMainCambridgePlanScraper(),
             # CoventryCambridgePlanScraper(),
             # HighlandHomesCambridgePlanScraper(),
@@ -215,8 +217,10 @@ class ScraperScheduler:
             # PerryHomesEdgewaterNowScraper(),
             # CoventryHomesEdgewaterNowScraper(),
             # ChesmarHomesEdgewaterNowScraper(),
+            GrandHomesEdgewaterNowScraper(),
             # UnionMainEdgewaterPlanScraper(),
             # CoventryHomesEdgewaterPlanScraper(),
+            GrandHomesEdgewaterPlanScraper(),
             # UnionMainCreeksideNowScraper(),
             # HighlandHomesCreeksideNowScraper(),
             # DavidWeekleyHomesCreeksideNowScraper(),
