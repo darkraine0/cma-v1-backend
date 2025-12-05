@@ -76,8 +76,14 @@ class DRHortonWildflowerRanchPlanScraper(BaseScraper):
                 try:
                     print(f"[DRHortonWildflowerRanchPlanScraper] Processing card {idx+1}")
                     
-                    # Extract plan name from h2 element
-                    plan_name_elem = card.find('h2', class_='pr-case')
+                    # Extract plan name from h2 element within card-content
+                    # First try to find within card-content, then fallback to direct find
+                    card_content = card.find('div', class_='card-content')
+                    if card_content:
+                        plan_name_elem = card_content.find('h2')
+                    else:
+                        plan_name_elem = card.find('h2')
+                    
                     if not plan_name_elem:
                         print(f"[DRHortonWildflowerRanchPlanScraper] Skipping card {idx+1}: No plan name found")
                         continue
@@ -91,8 +97,12 @@ class DRHortonWildflowerRanchPlanScraper(BaseScraper):
                     
                     seen_plans.add(plan_name)
                     
-                    # Extract starting price from h3 element
-                    price_elem = card.find('h3')
+                    # Extract starting price from h3 element within card-content
+                    if card_content:
+                        price_elem = card_content.find('h3')
+                    else:
+                        price_elem = card.find('h3')
+                    
                     if not price_elem:
                         print(f"[DRHortonWildflowerRanchPlanScraper] Skipping card {idx+1}: No price found")
                         continue
@@ -104,7 +114,11 @@ class DRHortonWildflowerRanchPlanScraper(BaseScraper):
                         continue
                     
                     # Extract property details from p elements with class 'stats'
-                    stats_elements = card.find_all('p', class_='stats')
+                    # Search within card-content if available, otherwise search the whole card
+                    if card_content:
+                        stats_elements = card_content.find_all('p', class_='stats')
+                    else:
+                        stats_elements = card.find_all('p', class_='stats')
                     beds = ""
                     baths = ""
                     sqft = None
@@ -150,8 +164,11 @@ class DRHortonWildflowerRanchPlanScraper(BaseScraper):
                     # Calculate price per sqft
                     price_per_sqft = round(starting_price / sqft, 2) if sqft > 0 else None
                     
-                    # Extract plan URL
-                    link_elem = card.find('a', class_='CoveoResultLink')
+                    # Extract plan URL - link wraps the card, so find it as parent or within toggle-item
+                    link_elem = card.find_parent('a', class_='CoveoResultLink')
+                    if not link_elem:
+                        # Fallback: search within the toggle-item for the link
+                        link_elem = card.find('a', class_='CoveoResultLink')
                     plan_url = link_elem.get('href') if link_elem else None
                     if plan_url and not plan_url.startswith('http'):
                         plan_url = f"https://www.drhorton.com{plan_url}"

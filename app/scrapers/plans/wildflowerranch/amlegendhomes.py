@@ -11,7 +11,7 @@ from ...base import BaseScraper
 from typing import List, Dict
 
 class AmericanLegendHomesWildflowerRanchPlanScraper(BaseScraper):
-    URL = "https://www.amlegendhomes.com/communities/texas/justin/treeline#homes"
+    URL = "https://www.amlegendhomes.com/communities/texas/justin/treeline"
     
     def parse_sqft(self, text):
         """Extract square footage from text."""
@@ -25,18 +25,19 @@ class AmericanLegendHomesWildflowerRanchPlanScraper(BaseScraper):
 
     def parse_beds(self, text):
         """Extract number of bedrooms from text."""
-        match = re.search(r'(\d+(?:\.\d+)?)', text)
+        match = re.search(r'(\d+(?:-\d+)?)', text)
         return str(match.group(1)) if match else ""
 
     def parse_baths(self, text):
         """Extract number of bathrooms from text."""
+        # Handle both "3" and "3.5" formats
         match = re.search(r'(\d+(?:\.\d+)?)', text)
         return str(match.group(1)) if match else ""
 
     def parse_stories(self, text):
         """Extract number of stories from text."""
         match = re.search(r'(\d+)', text)
-        return str(match.group(1)) if match else ""
+        return str(match.group(1)) if match else "1"
 
     def fetch_plans(self) -> List[Dict]:
         driver = None
@@ -62,109 +63,142 @@ class AmericanLegendHomesWildflowerRanchPlanScraper(BaseScraper):
                 EC.presence_of_element_located((By.CLASS_NAME, "css-zxy9ty"))
             )
             
-            # Scroll to load more content (in case of lazy loading)
+            # Scroll to load more content and make buttons visible
             print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Scrolling to load more content...")
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
-            driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(1)
+            
+            # Click "Load More Plans" button until it disappears or no more items load
+            max_clicks = 10  # Safety limit
+            click_count = 0
+            while click_count < max_clicks:
+                try:
+                    load_more_button = driver.find_element(By.CLASS_NAME, "CommunityPlans_load")
+                    if load_more_button and load_more_button.is_displayed():
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Clicking 'Load More Plans' button (attempt {click_count + 1})...")
+                        driver.execute_script("arguments[0].click();", load_more_button)
+                        time.sleep(3)  # Wait for content to load
+                        click_count += 1
+                    else:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Load More button not visible, stopping")
+                        break
+                except Exception as e:
+                    print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] No more 'Load More Plans' button found: {e}")
+                    break
+            
+            if click_count > 0:
+                print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Clicked 'Load More Plans' button {click_count} times")
+            
+            # Scroll again to ensure all content is loaded
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
             
-            # Look for "Show More" or similar buttons and click them
-            try:
-                show_more_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), 'Show More') or contains(text(), 'Load More') or contains(text(), 'View All') or contains(text(), 'See More')]")
-                for button in show_more_buttons:
-                    try:
-                        driver.execute_script("arguments[0].click();", button)
-                        time.sleep(2)
-                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Clicked 'Show More' button")
-                    except:
-                        pass
-            except:
-                pass
-            
-            # Get the page source after JavaScript execution and scrolling
+            # Get the page source after JavaScript execution and clicking
             html_content = driver.page_source
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Find all plan cards
-            plan_cards = soup.find_all('div', class_='css-zxy9ty', role='group')
+            # Find all plan cards - they have the class "css-zxy9ty" and contain plan information
+            plan_cards = soup.find_all('div', class_='css-zxy9ty')
             print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Found {len(plan_cards)} plan cards")
             
-            # Debug: Print all plan names found
-            print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Plan names found:")
-            for i, card in enumerate(plan_cards):
-                plan_name_elem = card.find('a', class_='flex-fill mr-auto PlanCard_title px-0')
-                plan_name = plan_name_elem.get_text(strip=True) if plan_name_elem else "Unknown"
-                print(f"  {i+1}. {plan_name}")
-            
             listings = []
+            seen_plan_names = set()  # Track plan names to prevent duplicates
             
             for idx, card in enumerate(plan_cards):
                 try:
-                    # Extract plan name
-                    plan_name_elem = card.find('a', class_='flex-fill mr-auto PlanCard_title px-0')
-                    plan_name = plan_name_elem.get_text(strip=True) if plan_name_elem else None
+                    print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Processing plan card {idx+1}")
                     
-                    if not plan_name:
-                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No plan name found")
+                    # Extract plan name and number
+                    title_link = card.find('a', class_='PlanCard_title')
+                    if not title_link:
+                        title_link = card.find('a', class_='flex-fill mr-auto PlanCard_title px-0')
+                    
+                    if not title_link:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No title link found")
                         continue
                     
-                    # Extract price from the "Starting at" section
-                    price_elem = card.find('strong')
-                    price_text = price_elem.get_text(strip=True) if price_elem else ""
-                    price = self.parse_price(price_text)
+                    plan_name = title_link.get_text(strip=True)
+                    if not plan_name:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: Empty plan name")
+                        continue
                     
-                    if not price:
+                    # Check for duplicate plan names
+                    if plan_name in seen_plan_names:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: Duplicate plan name '{plan_name}'")
+                        continue
+                    
+                    seen_plan_names.add(plan_name)
+                    
+                    # Extract price - look for the strong tag with price
+                    price_strong = card.find('strong')
+                    if not price_strong:
                         print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No price found")
                         continue
                     
-                    # Extract property details from the list
-                    details_list = card.find('ul', class_='list-unstyled m-0 px-3 d-flex align-items-center justify-content-between PlanCard_list flex-fill')
-                    if not details_list:
-                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No property details found")
+                    current_price = self.parse_price(price_strong.get_text())
+                    if not current_price:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No current price found")
                         continue
                     
-                    stories = None
-                    beds = None
-                    baths = None
+                    # Extract plan details (stories, beds, baths, sqft) from the PlanCard_list
+                    detail_list = card.find('ul', class_='PlanCard_list')
+                    if not detail_list:
+                        detail_list = card.find('ul', class_='list-unstyled m-0 px-3 d-flex align-items-center justify-content-between PlanCard_list flex-fill')
+                    
+                    beds = ""
+                    baths = ""
+                    stories = ""
                     sqft = None
                     
-                    list_items = details_list.find_all('li', class_='PlanCard_listItem')
-                    for item in list_items:
-                        text = item.get_text(strip=True)
-                        bold_elem = item.find('b')
-                        if bold_elem:
-                            label = bold_elem.get_text(strip=True)
-                            value = text.replace(label, '').strip()
-                            
-                            if label == 'Stories':
-                                stories = value
-                            elif label == 'Beds':
-                                beds = value
-                            elif label == 'Baths':
-                                baths = value
-                            elif label == 'Sqft':
-                                sqft = int(value.replace(',', '')) if value.replace(',', '').isdigit() else None
+                    if detail_list:
+                        detail_items = detail_list.find_all('li', class_='PlanCard_listItem')
+                        for item in detail_items:
+                            item_text = item.get_text(strip=True)
+                            if 'Stories' in item_text:
+                                stories = self.parse_stories(item_text)
+                            elif 'Beds' in item_text:
+                                beds = self.parse_beds(item_text)
+                            elif 'Baths' in item_text:
+                                baths = self.parse_baths(item_text)
+                            elif 'Sqft' in item_text:
+                                sqft = self.parse_sqft(item_text)
                     
-                    if not all([stories, beds, baths, sqft]):
-                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: Missing property details (stories: {stories}, beds: {beds}, baths: {baths}, sqft: {sqft})")
+                    if not sqft:
+                        print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Skipping card {idx+1}: No square footage found")
                         continue
                     
-                    # Extract plan link
-                    link_elem = card.find('a', class_='PlanCard_imageWrapper')
-                    plan_url = link_elem.get('href') if link_elem else None
-                    if plan_url and not plan_url.startswith('http'):
-                        plan_url = f"https://www.amlegendhomes.com{plan_url}"
-                    
                     # Calculate price per sqft
-                    price_per_sqft = round(price / sqft, 2) if sqft else None
+                    price_per_sqft = round(current_price / sqft, 2) if sqft > 0 else None
+                    
+                    # Extract image URL if available
+                    image_wrapper = card.find('a', class_='PlanCard_imageWrapper')
+                    image_url = ""
+                    if image_wrapper:
+                        img_tag = image_wrapper.find('img')
+                        if img_tag and img_tag.get('src'):
+                            image_url = img_tag['src']
+                    
+                    # Extract plan detail link
+                    detail_link = ""
+                    detail_link_tag = card.find('a', class_='PlanCard_linkDetail')
+                    if detail_link_tag and detail_link_tag.get('href'):
+                        detail_link = detail_link_tag['href']
+                        # Make it absolute URL if it's relative
+                        if detail_link.startswith('/'):
+                            detail_link = f"https://www.amlegendhomes.com{detail_link}"
+                    
+                    # Also check PlanCard_imageWrapper for link
+                    if not detail_link and image_wrapper:
+                        plan_url = image_wrapper.get('href')
+                        if plan_url:
+                            if not plan_url.startswith('http'):
+                                plan_url = f"https://www.amlegendhomes.com{plan_url}"
+                            detail_link = plan_url
                     
                     plan_data = {
-                        "price": price,
+                        "price": current_price,
                         "sqft": sqft,
-                        "stories": stories,
+                        "stories": stories or "1",
                         "price_per_sqft": price_per_sqft,
                         "plan_name": plan_name,
                         "company": "American Legend Homes",
@@ -172,12 +206,14 @@ class AmericanLegendHomesWildflowerRanchPlanScraper(BaseScraper):
                         "type": "plan",
                         "beds": beds,
                         "baths": baths,
-                        "address": "",  # Plans don't have addresses
-                        "design_number": plan_name,  # Use plan name as design number
-                        "url": plan_url
+                        "address": "",
+                        "original_price": None,
+                        "price_cut": "",
+                        "image_url": image_url,
+                        "detail_link": detail_link
                     }
                     
-                    print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Plan {idx+1}: {plan_data['plan_name']} - ${price:,} - {sqft:,} sqft")
+                    print(f"[AmericanLegendHomesWildflowerRanchPlanScraper] Plan {idx+1}: {plan_data}")
                     listings.append(plan_data)
                     
                 except Exception as e:
