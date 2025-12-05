@@ -52,14 +52,8 @@ class UnionMainWaldenPondWestPlanScraper(BaseScraper):
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Find the floorplans section
-            floorplans_section = soup.find('div', id='floorplans')
-            if not floorplans_section:
-                print(f"[UnionMainWaldenPondWestPlanScraper] No floorplans section found")
-                return []
-            
-            # Find all loop items with floorplan class
-            loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+            # Find all loop items with floorplan class (search entire soup like Cambridge scraper)
+            loop_items = soup.find_all('div', class_='e-loop-item')
             floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
             print(f"[UnionMainWaldenPondWestPlanScraper] Found {len(floorplan_items)} floorplan items")
             
@@ -126,15 +120,20 @@ class UnionMainWaldenPondWestPlanScraper(BaseScraper):
                                 elif label == 'SQFT':
                                     sqft = self.parse_sqft(value)
                     
-                    if not all([beds, baths, sqft]):
-                        print(f"[UnionMainWaldenPondWestPlanScraper] Skipping item {idx+1}: Missing property details (beds: {beds}, baths: {baths}, sqft: {sqft})")
+                    if not sqft:
+                        print(f"[UnionMainWaldenPondWestPlanScraper] Skipping item {idx+1}: Missing square footage (sqft: {sqft})")
                         continue
                     
-                    # Extract plan link
-                    link_elem = item.find('a', href=re.compile(r'/communities/walden-pond/plans/'))
+                    # Extract plan link - the link wraps the entire card
+                    link_elem = item.find('a', href=True)
                     plan_url = link_elem.get('href') if link_elem else None
-                    if plan_url and not plan_url.startswith('http'):
-                        plan_url = f"https://unionmainhomes.com{plan_url}"
+                    if plan_url:
+                        if not plan_url.startswith('http'):
+                            plan_url = f"https://unionmainhomes.com{plan_url}"
+                    else:
+                        # Fallback: try to construct URL from plan name
+                        plan_slug = plan_name.lower().replace(' ', '-')
+                        plan_url = f"https://unionmainhomes.com/communities/walden-pond/plans/{plan_slug}/"
                     
                     # Calculate price per sqft
                     price_per_sqft = round(price / sqft, 2) if sqft else None
