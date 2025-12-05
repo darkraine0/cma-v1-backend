@@ -56,14 +56,8 @@ class UnionMainHomesReunionPlanScraper(BaseScraper):
             listings = []
             seen_plans = set()  # Track plan names to prevent duplicates
             
-            # Find the floorplans section
-            floorplans_section = soup.find('div', id='floorplans')
-            if not floorplans_section:
-                print(f"[UnionMainHomesReunionPlanScraper] No floorplans section found")
-                return []
-            
-            # Find all loop items with floorplan class
-            loop_items = floorplans_section.find_all('div', class_='e-loop-item')
+            # Find all loop items with floorplan class (similar to Cambridge scraper)
+            loop_items = soup.find_all('div', class_='e-loop-item')
             floorplan_items = [item for item in loop_items if 'floorplan' in item.get('class', [])]
             print(f"[UnionMainHomesReunionPlanScraper] Found {len(floorplan_items)} floorplan items")
             
@@ -88,6 +82,10 @@ class UnionMainHomesReunionPlanScraper(BaseScraper):
                         continue
                     
                     seen_plans.add(plan_name)
+                    
+                    # Extract floor plan link from anchor tag
+                    anchor = item.find('a', href=True)
+                    floor_plan_link = anchor['href'] if anchor else ""
                     
                     # Extract price from h4 elements
                     # Look for price container with structure: old price -> arrow -> new price
@@ -161,7 +159,7 @@ class UnionMainHomesReunionPlanScraper(BaseScraper):
                         "address": "",
                         "original_price": original_price,
                         "price_cut": "",
-                        "floor_plan_link": ""
+                        "floor_plan_link": floor_plan_link
                     }
                     
                     print(f"[UnionMainHomesReunionPlanScraper] Item {idx+1}: {plan_data}")
