@@ -81,8 +81,14 @@ class DRHortonBluestemPlanScraper(BaseScraper):
                 try:
                     print(f"[DRHortonBluestemPlanScraper] Processing item {idx+1}")
                     
-                    # Extract plan name from h2 element
-                    plan_element = item.find('h2', class_='pr-case')
+                    # Find the card-content div which contains the plan details
+                    card_content = item.find('div', class_='card-content')
+                    if not card_content:
+                        print(f"[DRHortonBluestemPlanScraper] Skipping item {idx+1}: No card-content found")
+                        continue
+                    
+                    # Extract plan name from h2 element inside card-content
+                    plan_element = card_content.find('h2')
                     if not plan_element:
                         print(f"[DRHortonBluestemPlanScraper] Skipping item {idx+1}: No plan name found")
                         continue
@@ -99,8 +105,8 @@ class DRHortonBluestemPlanScraper(BaseScraper):
                     
                     seen_plans.add(plan_name)
                     
-                    # Extract price from h3 element
-                    price_element = item.find('h3')
+                    # Extract price from h3 element inside card-content
+                    price_element = card_content.find('h3')
                     if not price_element:
                         print(f"[DRHortonBluestemPlanScraper] Skipping item {idx+1}: No price found")
                         continue
@@ -111,8 +117,18 @@ class DRHortonBluestemPlanScraper(BaseScraper):
                         print(f"[DRHortonBluestemPlanScraper] Skipping item {idx+1}: Could not parse price from '{price_text}'")
                         continue
                     
-                    # Extract stats from p elements with class 'stats'
-                    stats_elements = item.find_all('p', class_='stats')
+                    # Extract floor plan link from the anchor tag
+                    link_element = item.find('a', class_='CoveoResultLink')
+                    floor_plan_link = ""
+                    if link_element and link_element.get('href'):
+                        href = link_element.get('href')
+                        if href.startswith('/'):
+                            floor_plan_link = f"https://www.drhorton.com{href}"
+                        else:
+                            floor_plan_link = href
+                    
+                    # Extract stats from p elements with class 'stats' inside card-content
+                    stats_elements = card_content.find_all('p', class_='stats')
                     beds = ""
                     baths = ""
                     garage = ""
@@ -160,7 +176,7 @@ class DRHortonBluestemPlanScraper(BaseScraper):
                         "address": "",
                         "original_price": None,
                         "price_cut": "",
-                        "floor_plan_link": ""
+                        "floor_plan_link": floor_plan_link
                     }
                     
                     print(f"[DRHortonBluestemPlanScraper] Item {idx+1}: {plan_data}")
