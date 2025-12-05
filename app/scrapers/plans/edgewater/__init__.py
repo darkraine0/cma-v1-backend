@@ -2,5 +2,6 @@
 from .unionmain import UnionMainEdgewaterPlanScraper
 from .coventryhomes import CoventryHomesEdgewaterPlanScraper
 from .grandhomes import GrandHomesEdgewaterPlanScraper
+from .highlandhomes import HighlandHomesEdgewaterPlanScraper
 
-__all__ = ['UnionMainEdgewaterPlanScraper', 'CoventryHomesEdgewaterPlanScraper', 'GrandHomesEdgewaterPlanScraper']
+__all__ = ['UnionMainEdgewaterPlanScraper', 'CoventryHomesEdgewaterPlanScraper', 'GrandHomesEdgewaterPlanScraper', 'HighlandHomesEdgewaterPlanScraper']

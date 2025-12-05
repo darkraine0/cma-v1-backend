@@ -52,9 +52,11 @@ from app.scrapers.now.edgewater.perryhomes import PerryHomesEdgewaterNowScraper
 from app.scrapers.now.edgewater.coventryhomes import CoventryHomesEdgewaterNowScraper
 from app.scrapers.now.edgewater.chesmarhomes import ChesmarHomesEdgewaterNowScraper
 from app.scrapers.now.edgewater.grandhomes import GrandHomesEdgewaterNowScraper
+from app.scrapers.now.edgewater.highlandhomes import HighlandHomesEdgewaterNowScraper
 from app.scrapers.plans.edgewater.unionmain import UnionMainEdgewaterPlanScraper
 from app.scrapers.plans.edgewater.coventryhomes import CoventryHomesEdgewaterPlanScraper
 from app.scrapers.plans.edgewater.grandhomes import GrandHomesEdgewaterPlanScraper
+from app.scrapers.plans.edgewater.highlandhomes import HighlandHomesEdgewaterPlanScraper
 from app.scrapers.now.creekside.unionmainhomes import UnionMainCreeksideNowScraper
 from app.scrapers.now.creekside.highlandhomes import HighlandHomesCreeksideNowScraper
 from app.scrapers.now.creekside.davidweekleyhomes import DavidWeekleyHomesCreeksideNowScraper
@@ -217,10 +219,12 @@ class ScraperScheduler:
             # PerryHomesEdgewaterNowScraper(),
             # CoventryHomesEdgewaterNowScraper(),
             # ChesmarHomesEdgewaterNowScraper(),
-            GrandHomesEdgewaterNowScraper(),
+            # GrandHomesEdgewaterNowScraper(),
+            # HighlandHomesEdgewaterNowScraper(),
             # UnionMainEdgewaterPlanScraper(),
             # CoventryHomesEdgewaterPlanScraper(),
-            GrandHomesEdgewaterPlanScraper(),
+            # GrandHomesEdgewaterPlanScraper(),
+            # HighlandHomesEdgewaterPlanScraper(),
             # UnionMainCreeksideNowScraper(),
             # HighlandHomesCreeksideNowScraper(),
             # DavidWeekleyHomesCreeksideNowScraper(),
