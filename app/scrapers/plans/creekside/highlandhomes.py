@@ -1,338 +1,295 @@
-import requests
+import time
 import re
-import json
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from ...base import BaseScraper
 from typing import List, Dict
+
 
 class HighlandHomesCreeksidePlanScraper(BaseScraper):
     URLS = [
         "https://www.highlandhomes.com/dfw/royse-city/creekshaw"
     ]
-
-    def parse_sqft(self, text):
-        """Extract square footage from text."""
-        if not text:
-            return None
-        match = re.search(r'([\d,]+)', text)
-        return int(match.group(1).replace(",", "")) if match else None
-
+    
     def parse_price(self, text):
         """Extract price from text."""
         if not text:
             return None
-        match = re.search(r'\$([\d,]+)', text)
-        return int(match.group(1).replace(",", "")) if match else None
+        cleaned_text = text.replace(" ", "").replace("$", "").replace(",", "")
+        match = re.search(r'(\d+)', cleaned_text)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+    def parse_sqft_range(self, text):
+        """Extract minimum square footage from range like '2,802 - 2,822'."""
+        if not text:
+            return None
+        
+        # Try to find a range pattern
+        range_match = re.search(r'(\d+(?:,\d+)?)\s*-\s*(\d+(?:,\d+)?)', text)
+        if range_match:
+            # Return the minimum value
+            min_sqft = int(range_match.group(1).replace(",", ""))
+            return min_sqft
+        
+        # If no range, try to find a single number
+        single_match = re.search(r'(\d+(?:,\d+)?)', text)
+        if single_match:
+            return int(single_match.group(1).replace(",", ""))
+        
+        return None
 
     def parse_beds(self, text):
-        """Extract number of bedrooms from text."""
+        """Extract number of bedrooms from text (can be range like '3-4')."""
         if not text:
-            return None
-        # Handle ranges like "3-4" by taking the first number
+            return ""
+        # Extract first number from range or single number
         match = re.search(r'(\d+)', text)
-        return str(match.group(1)) if match else None
+        return str(match.group(1)) if match else ""
 
     def parse_baths(self, text):
-        """Extract number of bathrooms from text."""
+        """Extract number of bathrooms from text (can be range like '3-4')."""
         if not text:
-            return None
-        # Handle ranges like "2-3" by taking the first number
+            return ""
+        # Extract first number from range or single number
         match = re.search(r'(\d+)', text)
-        return str(match.group(1)) if match else None
+        return str(match.group(1)) if match else ""
 
-    def parse_stories(self, text):
-        """Extract number of stories from text."""
+    def parse_garage(self, text):
+        """Extract number of garage spaces from text."""
         if not text:
-            return None
+            return ""
         match = re.search(r'(\d+)', text)
-        return str(match.group(1)) if match else None
-
-    def parse_lot_size(self, text):
-        """Extract lot size from text."""
-        # Not available in the provided HTML structure
-        return None
-
-    def find_javascript_plans(self, soup):
-        """Try to find plan data in JavaScript variables."""
-        scripts = soup.find_all('script')
-        
-        for script in scripts:
-            if script.string:
-                script_content = script.string
-                
-                # Look for the availableIfps array that contains plan data
-                if 'availableIfps' in script_content:
-                    print(f"[HighlandHomesCreeksidePlanScraper] Found availableIfps in JavaScript")
-                    
-                    # Extract the availableIfps array
-                    match = re.search(r'const\s+availableIfps\s*=\s*(\[.*?\]);', script_content, re.DOTALL)
-                    if match:
-                        try:
-                            plans_data = json.loads(match.group(1))
-                            if isinstance(plans_data, list) and len(plans_data) > 0:
-                                print(f"[HighlandHomesCreeksidePlanScraper] Found {len(plans_data)} plans in JavaScript")
-                                return plans_data
-                        except json.JSONDecodeError:
-                            print(f"[HighlandHomesCreeksidePlanScraper] Failed to parse availableIfps JSON")
-                            continue
-                    
-                    # Alternative pattern if the above doesn't work
-                    match = re.search(r'availableIfps\s*=\s*(\[.*?\]);', script_content, re.DOTALL)
-                    if match:
-                        try:
-                            plans_data = json.loads(match.group(1))
-                            if isinstance(plans_data, list) and len(plans_data) > 0:
-                                print(f"[HighlandHomesCreeksidePlanScraper] Found {len(plans_data)} plans in JavaScript (alt pattern)")
-                                return plans_data
-                        except json.JSONDecodeError:
-                            print(f"[HighlandHomesCreeksidePlanScraper] Failed to parse availableIfps JSON (alt pattern)")
-                            continue
-        
-        return None
-
-    def extract_plan_data(self, plan_card):
-        """Extract data from a plan card div."""
-        try:
-            # Extract plan name from the home identifier
-            plan_name = None
-            plan_elem = plan_card.find('span', class_='homeIdentifier')
-            if plan_elem:
-                plan_name = plan_elem.get_text(strip=True)
-
-            # Extract price
-            price = None
-            price_elem = plan_card.find('span', class_='price')
-            if price_elem:
-                price_text = price_elem.get_text(strip=True)
-                price = self.parse_price(price_text)
-
-            # Extract features from the home details
-            beds = None
-            baths = None
-            stories = None
-            sqft = None
-
-            home_details = plan_card.find('div', class_='homeDetails')
-            if home_details:
-                detail_items = home_details.find_all('div', class_='homeDetailItem')
-                for item in detail_items:
-                    label_elem = item.find('span', class_='label')
-                    numeral_elem = item.find('span', class_='numeral')
-                    if label_elem and numeral_elem:
-                        label = label_elem.get_text(strip=True).lower()
-                        numeral = numeral_elem.get_text(strip=True)
-                        
-                        if 'bed' in label:
-                            beds = self.parse_beds(numeral)
-                        elif 'bath' in label and 'full' in label:
-                            # For full baths, we'll use the numeral directly
-                            baths = self.parse_baths(numeral)
-                        elif 'stor' in label:
-                            stories = self.parse_stories(numeral)
-                        elif 'sq ft' in label or 'base sq ft' in label:
-                            sqft = self.parse_sqft(numeral)
-
-            # Extract lot size (not available in this structure)
-            lot_size = None
-
-            return {
-                "price": price,
-                "sqft": sqft,
-                "stories": stories,
-                "plan_name": plan_name,
-                "beds": beds,
-                "baths": baths,
-                "lot_size": lot_size
-            }
-
-        except Exception as e:
-            print(f"[HighlandHomesCreeksidePlanScraper] Error extracting plan data: {e}")
-            return None
+        return str(match.group(1)) if match else ""
 
     def fetch_plans(self) -> List[Dict]:
+        driver = None
         try:
-            print(f"[HighlandHomesCreeksidePlanScraper] Fetching URLs: {self.URLS}")
+            print(f"[HighlandHomesCreeksidePlanScraper] Starting to fetch HighlandHomes plans for Creekside")
             
-            # Use headers that avoid compression issues
-            headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "identity",  # Avoid compression to prevent corrupted content
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-            }
-
+            # Setup Chrome options for Cloudflare protection
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+            
+            driver = webdriver.Chrome(options=chrome_options)
+            
             all_plans = []
-            seen_plan_names = set()  # Track plan names to prevent duplicates
-
-            for url_idx, url in enumerate(self.URLS):
+            seen_plan_names = set()
+            
+            for url_idx, url in enumerate(self.URLS, 1):
                 try:
-                    print(f"[HighlandHomesCreeksidePlanScraper] Processing URL {url_idx + 1}: {url}")
-
-                    resp = requests.get(url, headers=headers, timeout=15)
-                    print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1} response status: {resp.status_code}")
-
-                    if resp.status_code != 200:
-                        print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1} request failed with status {resp.status_code}")
+                    print(f"[HighlandHomesCreeksidePlanScraper] Fetching URL {url_idx}: {url}")
+                    driver.get(url)
+                    
+                    # Wait for the page to load and Cloudflare to pass
+                    print(f"[HighlandHomesCreeksidePlanScraper] Waiting for page to load...")
+                    time.sleep(15)  # Extra time for Cloudflare
+                    
+                    # Scroll to trigger content loading
+                    print(f"[HighlandHomesCreeksidePlanScraper] Scrolling to trigger content loading...")
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(5)
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    time.sleep(3)
+                    
+                    # Wait for plan cards section
+                    wait = WebDriverWait(driver, 30)
+                    try:
+                        wait.until(EC.presence_of_element_located((By.ID, "planCards")))
+                    except:
+                        print(f"[HighlandHomesCreeksidePlanScraper] Waiting for planCards section...")
+                        time.sleep(5)
+                    
+                    # Get the page source after JavaScript has loaded
+                    soup = BeautifulSoup(driver.page_source, 'html.parser')
+                    
+                    # Find the plan cards section
+                    plan_section = soup.find('section', id='planCards')
+                    if not plan_section:
+                        print(f"[HighlandHomesCreeksidePlanScraper] No planCards section found for URL {url_idx}")
                         continue
-
-                    soup = BeautifulSoup(resp.content, 'html.parser')
                     
-                    # First, try to find data in JavaScript variables
-                    js_plans = self.find_javascript_plans(soup)
-                    if js_plans:
-                        print(f"[HighlandHomesCreeksidePlanScraper] Processing JavaScript plan data")
-                        
-                        for plan in js_plans:
-                            try:
-                                # Extract data from JavaScript object
-                                plan_code = plan.get('name') or plan.get('planName') or plan.get('model') or ''
-                                price = plan.get('calcPrice') or plan.get('price') or plan.get('startingPrice')
-                                stories = plan.get('stories') or plan.get('floors') or '1'
-                                
-                                if plan_code and price:
-                                    # Convert plan code to proper plan name
-                                    plan_name = plan_code
-                                    
-                                    # Check for duplicate plan names
-                                    if plan_name in seen_plan_names:
-                                        continue
-                                    seen_plan_names.add(plan_name)
-                                    
-                                    # Extract SQFT from JavaScript data
-                                    sqft = None
-                                    if plan.get('squareFootage'):
-                                        try:
-                                            sqft = int(plan.get('squareFootage'))
-                                        except (ValueError, TypeError):
-                                            pass
-                                    
-                                    # Extract beds from JavaScript data
-                                    beds = ""
-                                    if plan.get('bedroomsRange'):
-                                        # Handle ranges like "3-4" by taking the first number
-                                        beds_match = re.search(r'(\d+)', plan.get('bedroomsRange'))
-                                        if beds_match:
-                                            beds = beds_match.group(1)
-                                    
-                                    # Extract baths from JavaScript data
-                                    baths = ""
-                                    if plan.get('bathsRange') and plan.get('halfBathsRange'):
-                                        try:
-                                            # Handle ranges like "2-3" by taking the first number
-                                            full_baths_match = re.search(r'(\d+)', plan.get('bathsRange'))
-                                            half_baths_match = re.search(r'(\d+)', plan.get('halfBathsRange'))
-                                            
-                                            if full_baths_match and half_baths_match:
-                                                full_baths = int(full_baths_match.group(1))
-                                                half_baths = int(half_baths_match.group(1))
-                                                total_baths = full_baths + (half_baths * 0.5)
-                                                baths = str(total_baths)
-                                        except (ValueError, TypeError):
-                                            pass
-                                    
-                                    # Calculate price per sqft if we have both price and sqft
-                                    price_per_sqft = None
-                                    if price and sqft and sqft > 0:
-                                        price_per_sqft = round(price / sqft, 2)
-                                    
-                                    # Create the final plan data
-                                    final_plan_data = {
-                                        "price": price,
-                                        "sqft": sqft,
-                                        "stories": str(stories),
-                                        "price_per_sqft": price_per_sqft,
-                                        "plan_name": plan_name,
-                                        "company": "Highland Homes",
-                                        "community": "Creekside",
-                                        "type": "plan",
-                                        "beds": beds,
-                                        "baths": baths,
-                                        "lot_size": None
-                                    }
-                                    
-                                    print(f"[HighlandHomesCreeksidePlanScraper] JavaScript plan: {final_plan_data}")
-                                    all_plans.append(final_plan_data)
-                                    
-                            except Exception as e:
-                                print(f"[HighlandHomesCreeksidePlanScraper] Error processing JavaScript plan: {e}")
-                                continue
+                    # Find all plan cards - search for <a> tags that have both 'home-container' and 'homePlan' classes
+                    plan_cards = []
+                    all_links = plan_section.find_all('a')
+                    for link in all_links:
+                        classes = link.get('class', [])
+                        if isinstance(classes, list):
+                            if 'home-container' in classes and 'homePlan' in classes:
+                                plan_cards.append(link)
+                        elif isinstance(classes, str):
+                            if 'home-container' in classes and 'homePlan' in classes:
+                                plan_cards.append(link)
                     
-                    # If no JavaScript data found, fall back to HTML parsing
-                    if not js_plans:
-                        print(f"[HighlandHomesCreeksidePlanScraper] No JavaScript data found, falling back to HTML parsing")
-                        
-                        # Look for plan cards in the plans-compare section
-                        plans_section = soup.find('div', class_='plans-compare')
-                        if plans_section:
-                            plan_cards = plans_section.find_all('a', class_='homePlan')
-                            print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}: Found {len(plan_cards)} plan cards in plans-compare section")
-                        else:
-                            # Fallback: look for any homePlan elements
-                            plan_cards = soup.find_all('a', class_='homePlan')
-                            print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}: Found {len(plan_cards)} plan cards (fallback)")
-
-                        for card_idx, plan_card in enumerate(plan_cards):
-                            try:
-                                print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: Processing plan card")
-
-                                # Extract data from the plan card
-                                plan_data = self.extract_plan_data(plan_card)
-                                if not plan_data:
-                                    print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: Failed to extract plan data")
-                                    continue
-
-                                # Check for required fields - require plan_name
-                                if not plan_data.get('plan_name'):
-                                    print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: Missing plan name")
-                                    continue
-
-                                # Check for duplicate plans - use plan_name as unique identifier
-                                plan_name = plan_data.get('plan_name')
-                                if plan_name in seen_plan_names:
-                                    print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: Duplicate plan {plan_name}")
-                                    continue
-                                seen_plan_names.add(plan_name)
-
-                                # Calculate price per square foot if both price and sqft are available
-                                price_per_sqft = None
-                                if plan_data.get('price') and plan_data.get('sqft'):
-                                    price_per_sqft = round(plan_data['price'] / plan_data['sqft'], 2) if plan_data['sqft'] > 0 else None
-
-                                # Create the final plan data
-                                final_plan_data = {
-                                    "price": plan_data['price'],
-                                    "sqft": plan_data['sqft'],
-                                    "stories": plan_data['stories'],
-                                    "price_per_sqft": price_per_sqft,
-                                    "plan_name": plan_data['plan_name'],
-                                    "company": "Highland Homes",
-                                    "community": "Creekside",
-                                    "type": "plan",
-                                    "beds": plan_data['beds'],
-                                    "baths": plan_data['baths'],
-                                    "lot_size": plan_data['lot_size']
-                                }
-
-                                print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: {final_plan_data}")
-                                all_plans.append(final_plan_data)
-
-                            except Exception as e:
-                                print(f"[HighlandHomesCreeksidePlanScraper] URL {url_idx + 1}, Card {card_idx + 1}: Error processing card: {e}")
+                    print(f"[HighlandHomesCreeksidePlanScraper] Found {len(plan_cards)} plan cards for URL {url_idx}")
+                    
+                    for idx, card in enumerate(plan_cards):
+                        try:
+                            # Extract plan name
+                            plan_name_elem = card.find('span', class_='homeIdentifier')
+                            if not plan_name_elem:
                                 continue
-
+                            
+                            plan_name = plan_name_elem.get_text(strip=True)
+                            if not plan_name:
+                                continue
+                            
+                            # Check for duplicate plan names
+                            if plan_name in seen_plan_names:
+                                print(f"[HighlandHomesCreeksidePlanScraper] Skipping duplicate plan: {plan_name}")
+                                continue
+                            seen_plan_names.add(plan_name)
+                            
+                            # Extract starting price
+                            price = None
+                            price_elem = card.find('span', class_='price')
+                            if price_elem:
+                                price_text = price_elem.get_text(strip=True)
+                                price = self.parse_price(price_text)
+                            
+                            # Extract square footage (range)
+                            sqft = None
+                            sqft_elem = card.find('span', class_='label', string=re.compile('sq ft', re.I))
+                            if sqft_elem:
+                                sqft_parent = sqft_elem.find_parent('div', class_='homeDetailItem')
+                                if sqft_parent:
+                                    numeral_elem = sqft_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        sqft_text = numeral_elem.get_text(strip=True)
+                                        sqft = self.parse_sqft_range(sqft_text)
+                            
+                            if not price or not sqft:
+                                print(f"[HighlandHomesCreeksidePlanScraper] Skipping plan {idx+1}: Missing price or sqft")
+                                continue
+                            
+                            # Extract beds (can be range like "3-4")
+                            beds = ""
+                            beds_elem = card.find('span', class_='label', string=re.compile('beds', re.I))
+                            if beds_elem:
+                                beds_parent = beds_elem.find_parent('div', class_='homeDetailItem')
+                                if beds_parent:
+                                    numeral_elem = beds_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        beds_text = numeral_elem.get_text(strip=True)
+                                        beds = self.parse_beds(beds_text)
+                            
+                            # Extract full baths (can be range like "3-4")
+                            baths = ""
+                            full_baths_elem = card.find('span', class_='label', string=re.compile('full baths', re.I))
+                            if full_baths_elem:
+                                baths_parent = full_baths_elem.find_parent('div', class_='homeDetailItem')
+                                if baths_parent:
+                                    numeral_elem = baths_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        baths_text = numeral_elem.get_text(strip=True)
+                                        baths = self.parse_baths(baths_text)
+                            
+                            # Extract stories
+                            stories = ""
+                            stories_elem = card.find('span', class_='label', string=re.compile('stories', re.I))
+                            if stories_elem:
+                                stories_parent = stories_elem.find_parent('div', class_='homeDetailItem')
+                                if stories_parent:
+                                    numeral_elem = stories_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        stories = numeral_elem.get_text(strip=True)
+                            
+                            # Extract garages
+                            garage = ""
+                            garage_elem = card.find('span', class_='label', string=re.compile('garages', re.I))
+                            if garage_elem:
+                                garage_parent = garage_elem.find_parent('div', class_='homeDetailItem')
+                                if garage_parent:
+                                    numeral_elem = garage_parent.find('span', class_='numeral')
+                                    if numeral_elem:
+                                        garage_text = numeral_elem.get_text(strip=True)
+                                        garage = self.parse_garage(garage_text)
+                            
+                            # Extract image URL
+                            image_url = ""
+                            img_tag = card.find('img', class_='homePlan_ifp')
+                            if img_tag:
+                                img_src = img_tag.get('data-src') or img_tag.get('src')
+                                if img_src:
+                                    if img_src.startswith('//'):
+                                        image_url = f"https:{img_src}"
+                                    elif img_src.startswith('/'):
+                                        image_url = f"https://www.highlandhomes.com{img_src}"
+                                    else:
+                                        image_url = img_src
+                            
+                            # Extract detail link
+                            detail_link = ""
+                            href = card.get('href')
+                            if href:
+                                if href.startswith('/'):
+                                    detail_link = f"https://www.highlandhomes.com{href}"
+                                elif href.startswith('http'):
+                                    detail_link = href
+                                else:
+                                    detail_link = f"https://www.highlandhomes.com/{href}"
+                            
+                            # Calculate price per sqft
+                            price_per_sqft = round(price / sqft, 2) if sqft > 0 else None
+                            
+                            plan_data = {
+                                "price": price,
+                                "sqft": sqft,
+                                "stories": stories,
+                                "price_per_sqft": price_per_sqft,
+                                "plan_name": plan_name,
+                                "company": "HighlandHomes",
+                                "community": "Creekside",
+                                "type": "plan",
+                                "beds": beds,
+                                "baths": baths,
+                                "address": plan_name,  # Use plan name as address for plans
+                                "original_price": None,
+                                "price_cut": "",
+                                "status": "",
+                                "mls": "",
+                                "sub_community": "",
+                                "image_url": image_url,
+                                "detail_link": detail_link,
+                                "garage": garage
+                            }
+                            
+                            print(f"[HighlandHomesCreeksidePlanScraper] Plan {idx+1}: {plan_name} - ${price:,} - {sqft} sqft")
+                            all_plans.append(plan_data)
+                            
+                        except Exception as e:
+                            print(f"[HighlandHomesCreeksidePlanScraper] Error processing plan {idx+1}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            continue
+                
                 except Exception as e:
-                    print(f"[HighlandHomesCreeksidePlanScraper] Error processing URL {url_idx + 1}: {e}")
+                    print(f"[HighlandHomesCreeksidePlanScraper] Error fetching URL {url_idx}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
-
-            print(f"[HighlandHomesCreeksidePlanScraper] Successfully processed {len(all_plans)} total plans across all URLs")
+            
+            print(f"[HighlandHomesCreeksidePlanScraper] Successfully processed {len(all_plans)} plans")
             return all_plans
-
+            
         except Exception as e:
             print(f"[HighlandHomesCreeksidePlanScraper] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
+        finally:
+            if driver:
+                driver.quit()
