@@ -4,4 +4,5 @@ from .coventry import CoventryCambridgePlanScraper
 from .amlegendhomes import AmericanLegendHomesCambridgePlanScraper
 from .brightlandhomes import BrightlandHomesCambridgePlanScraper
 from .trophysignature import TrophySignatureCambridgePlanScraper
-from .castlerock import CastlerockCambridgePlanScraper 
+from .castlerock import CastlerockCambridgePlanScraper
+from .shaddockhomes import ShaddockHomesCambridgePlanScraper 

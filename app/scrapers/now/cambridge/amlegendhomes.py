@@ -122,12 +122,25 @@ class AmericanLegendHomesCambridgeNowScraper(BaseScraper):
             click_count = 0
             while click_count < max_clicks:
                 try:
-                    load_more_button = driver.find_element(By.CLASS_NAME, "CommunityHomes_load")
-                    if load_more_button and load_more_button.is_displayed():
+                    # Wait for the button to be present and scroll it into view
+                    load_more_button = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, "CommunityHomes_load"))
+                    )
+                    
+                    # Scroll the button into view
+                    driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", load_more_button)
+                    time.sleep(1)
+                    
+                    # Check if button is displayed and clickable
+                    if load_more_button.is_displayed():
                         print(f"[AmericanLegendHomesCambridgeNowScraper] Clicking 'Load More Homes' button (attempt {click_count + 1})...")
                         driver.execute_script("arguments[0].click();", load_more_button)
                         time.sleep(3)  # Wait for content to load
                         click_count += 1
+                        
+                        # Scroll to bottom again to trigger any lazy loading
+                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        time.sleep(1)
                     else:
                         print(f"[AmericanLegendHomesCambridgeNowScraper] Load More button not visible, stopping")
                         break

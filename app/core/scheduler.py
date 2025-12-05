@@ -22,6 +22,7 @@ from app.scrapers.now.cambridge.trophysignature import TrophySignatureCambridgeN
 from app.scrapers.plans.cambridge.trophysignature import TrophySignatureCambridgePlanScraper
 from app.scrapers.now.cambridge.brightlandhomes import BrightlandHomesCambridgeNowScraper
 from app.scrapers.now.cambridge.castlerock import CastlerockCambridgeNowScraper
+from app.scrapers.now.cambridge.shaddockhomes import ShaddockHomesCambridgeNowScraper
 from app.scrapers.now.milrany.unionmain import UnionMainMilranyNowScraper
 from app.scrapers.now.milrany.bloomfield import BloomfieldMilranyNowScraper
 from app.scrapers.now.milrany.pacesetter import PacesetterMilranyNowScraper
@@ -33,6 +34,7 @@ from app.scrapers.plans.cambridge.highlandhomes import HighlandHomesCambridgePla
 from app.scrapers.plans.cambridge.amlegendhomes import AmericanLegendHomesCambridgePlanScraper
 from app.scrapers.plans.cambridge.brightlandhomes import BrightlandHomesCambridgePlanScraper
 from app.scrapers.plans.cambridge.castlerock import CastlerockCambridgePlanScraper
+from app.scrapers.plans.cambridge.shaddockhomes import ShaddockHomesCambridgePlanScraper
 from app.scrapers.now.brookville.beazerhomes import BeazerHomesBrookvilleNowScraper
 from app.scrapers.now.brookville.trophysignature import TrophySignatureBrookvilleNowScraper
 from app.scrapers.now.brookville.highlandhomes import HighlandHomesBrookvilleNowScraper
@@ -173,7 +175,7 @@ class ScraperScheduler:
             # PacesetterElevonPlanScraper(),
             # TrophySignatureElevonPlanScraper(),
             # UnionMainCambridgeNowScraper(),
-            CoventryCambridgeNowScraper(),
+            # CoventryCambridgeNowScraper(),
             # HighlandHomesCambridgeNowScraper(),
             # AmericanLegendHomesCambridgeNowScraper(),
             # TrophySignatureCambridgeNowScraper(),
@@ -186,7 +188,7 @@ class ScraperScheduler:
             # UnionMainMilranyPlanScraper(),
             # PacesetterMilranyPlanScraper(),
             # UnionMainCambridgePlanScraper(),
-            CoventryCambridgePlanScraper(),
+            # CoventryCambridgePlanScraper(),
             # HighlandHomesCambridgePlanScraper(),
             # AmericanLegendHomesCambridgePlanScraper(),
             # BrightlandHomesCambridgePlanScraper(),
@@ -307,6 +309,9 @@ class ScraperScheduler:
             # PacesetterWaldenPondWestNowScraper(),
             # CentexWaldenPondWestNowScraper(),
             # HistoryMakerWaldenPondWestNowScraper(),
+            # ShaddockHomesCambridgeNowScraper(),
+            # ShaddockHomesCambridgePlanScraper(),
+            
         ]
         self.timer = None
         self.running = False
