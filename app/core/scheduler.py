@@ -162,7 +162,7 @@ from app.scrapers.now.waldenpondwest.historymaker import HistoryMakerWaldenPondW
 from app.db.session import SessionLocal
 from app.services.change_detection import detect_and_update_changes
 
-SCRAPE_INTERVAL_SECONDS = 3600  # 1 hour
+SCRAPE_INTERVAL_SECONDS = 3600*48  # 1 hour
 
 class ScraperScheduler:
     def __init__(self):
@@ -352,14 +352,23 @@ class ScraperScheduler:
         print("[Scheduler] Running all scrapers...")
         db = SessionLocal()
         try:
+            # Collect all plans and group by community
+            by_community = {}
             for scraper in self.scrapers:
                 print(f"[Scheduler] Running scraper: {scraper.__class__.__name__}")
                 plans = scraper.fetch_plans()
                 if plans:
-                    detect_and_update_changes(db, plans)
-                    print(f"[Scheduler] {scraper.__class__.__name__}: Updated {len(plans)} plans.")
+                    for p in plans:
+                        c = p.get("community")
+                        if c:
+                            by_community.setdefault(c, []).append(p)
+                    print(f"[Scheduler] {scraper.__class__.__name__}: {len(plans)} plans.")
                 else:
                     print(f"[Scheduler] {scraper.__class__.__name__}: No plans found or scraping failed.")
+            # For each community: delete that community's data, then re-import its plans
+            for community, plans in by_community.items():
+                print(f"[Scheduler] Re-importing community {community}: {len(plans)} plans.")
+                detect_and_update_changes(db, plans)
         except Exception as e:
             print(f"[Scheduler] Error: {e}")
         finally:
