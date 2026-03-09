@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from .models import Base
+from .models import Base, CommunityName, Plan, PriceHistory  # import all models so create_all creates every table
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./homes.db"
 

@@ -4,6 +4,15 @@ from datetime import datetime
 
 Base = declarative_base()
 
+
+class CommunityName(Base):
+    """Table of community names (one row per community)."""
+    __tablename__ = "community_names"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Plan(Base):
     __tablename__ = "plans"
     id = Column(Integer, primary_key=True, index=True)

@@ -160,7 +160,7 @@ from app.scrapers.now.waldenpondwest.pacesetter import PacesetterWaldenPondWestN
 from app.scrapers.now.waldenpondwest.centex import CentexWaldenPondWestNowScraper
 from app.scrapers.now.waldenpondwest.historymaker import HistoryMakerWaldenPondWestNowScraper
 from app.db.session import SessionLocal
-from app.services.change_detection import detect_and_update_changes
+from app.services.change_detection import detect_and_update_changes, sync_community_names_from_plans
 
 SCRAPE_INTERVAL_SECONDS = 3600*48  # 1 hour
 
@@ -369,9 +369,13 @@ class ScraperScheduler:
             for community, plans in by_community.items():
                 print(f"[Scheduler] Re-importing community {community}: {len(plans)} plans.")
                 detect_and_update_changes(db, plans)
+            # Ensure community_names table has all communities that exist in plans (fallback if none were added above)
+            sync_community_names_from_plans(db)
         except Exception as e:
+            sync_community_names_from_plans(db)
             print(f"[Scheduler] Error: {e}")
         finally:
+            sync_community_names_from_plans(db)
             db.close()
         self.schedule_next_run()
 

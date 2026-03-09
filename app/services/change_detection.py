@@ -1,12 +1,28 @@
 from sqlalchemy.orm import Session
-from app.db.models import Plan, PriceHistory
+from app.db.models import Plan, PriceHistory, CommunityName
 from datetime import datetime, timedelta
+
+def ensure_community_names(db: Session, community_names: set):
+    """Insert any new community names into the community_names table."""
+    for name in community_names:
+        if name and db.query(CommunityName).filter(CommunityName.name == name).first() is None:
+            db.add(CommunityName(name=name))
+
+def sync_community_names_from_plans(db: Session):
+    """Ensure community_names table has every distinct community that exists in the plans table."""
+    distinct = db.query(Plan.community).distinct().all()
+    for (name,) in distinct:
+        if name and db.query(CommunityName).filter(CommunityName.name == name).first() is None:
+            db.add(CommunityName(name=name))
+    db.commit()
 
 def detect_and_update_changes(db: Session, new_plans: list):
     """Delete all plans (and price history) for the communities in this batch, then insert new_plans."""
     if not new_plans:
         return
-    communities = {p["community"] for p in new_plans}
+    communities = {p.get("community") for p in new_plans if p.get("community")}
+    # Ensure each community name exists in community_names table
+    ensure_community_names(db, communities)
     # Delete price history for plans in those communities (FK first)
     plan_ids = [row[0] for row in db.query(Plan.id).filter(Plan.community.in_(communities)).all()]
     if plan_ids:

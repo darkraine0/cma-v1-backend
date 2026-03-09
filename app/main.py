@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import plans_router, get_plans_router
+from app.api import plans_router, get_plans_router, get_communities_router
 from app.db.session import init_db
 from app.core.scheduler import scheduler
 import os
@@ -20,6 +20,7 @@ app.add_middleware(
 
 app.include_router(plans_router, prefix="/api")
 app.include_router(get_plans_router, prefix="/api")
+app.include_router(get_communities_router, prefix="/api")
 
 @app.on_event("startup")
 def on_startup():
