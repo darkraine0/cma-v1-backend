@@ -352,30 +352,38 @@ class ScraperScheduler:
         print("[Scheduler] Running all scrapers...")
         db = SessionLocal()
         try:
-            # Collect all plans and group by community
-            by_community = {}
+            # Collect all plans from all scrapers (one failing scraper must not abort the run)
+            all_plans = []
             for scraper in self.scrapers:
                 print(f"[Scheduler] Running scraper: {scraper.__class__.__name__}")
-                plans = scraper.fetch_plans()
+                try:
+                    plans = scraper.fetch_plans()
+                except Exception as e:
+                    print(f"[Scheduler] {scraper.__class__.__name__} failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
                 if plans:
                     for p in plans:
-                        c = p.get("community")
-                        if c:
-                            by_community.setdefault(c, []).append(p)
+                        # Normalize key: some scrapers may use "Community" or "community"
+                        if "community" not in p and "Community" in p:
+                            p["community"] = p["Community"]
+                    all_plans.extend(plans)
                     print(f"[Scheduler] {scraper.__class__.__name__}: {len(plans)} plans.")
                 else:
                     print(f"[Scheduler] {scraper.__class__.__name__}: No plans found or scraping failed.")
-            # For each community: delete that community's data, then re-import its plans
-            for community, plans in by_community.items():
-                print(f"[Scheduler] Re-importing community {community}: {len(plans)} plans.")
-                detect_and_update_changes(db, plans)
-            # Ensure community_names table has all communities that exist in plans (fallback if none were added above)
-            sync_community_names_from_plans(db)
+            # Store all scraped plans (delete by community + insert); runs whenever we have any data
+            if all_plans:
+                print(f"[Scheduler] Storing {len(all_plans)} plans in database...")
+                detect_and_update_changes(db, all_plans)
+                # Ensure community_names table has all communities that exist in plans
+                sync_community_names_from_plans(db)
+                print("[Scheduler] Done.")
         except Exception as e:
-            sync_community_names_from_plans(db)
             print(f"[Scheduler] Error: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
-            sync_community_names_from_plans(db)
             db.close()
         self.schedule_next_run()
 

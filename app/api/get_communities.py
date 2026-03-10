@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
-from app.db.models import Plan
+from app.db.models import CommunityName
 from pydantic import BaseModel
 
 router = APIRouter()
+
 
 def get_db():
     db = SessionLocal()
@@ -13,12 +14,19 @@ def get_db():
     finally:
         db.close()
 
+
 class CommunityNameOut(BaseModel):
     id: int
     name: str
+    plan: int
+    now: int
+
 
 @router.get("/get_communities", response_model=list[CommunityNameOut])
 def get_communities(db: Session = Depends(get_db)):
-    """Return all distinct community names that have at least one plan in the plans table."""
-    rows = db.query(Plan.community).distinct().filter(Plan.community.isnot(None)).filter(Plan.community != "").order_by(Plan.community).all()
-    return [CommunityNameOut(id=i + 1, name=name) for i, (name,) in enumerate(rows)]
+    """Return all rows from the community_names table."""
+    rows = db.query(CommunityName).order_by(CommunityName.name).all()
+    return [
+        CommunityNameOut(id=row.id, name=row.name, plan=row.plan, now=row.now)
+        for row in rows
+    ]

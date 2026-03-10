@@ -10,6 +10,8 @@ class CommunityName(Base):
     __tablename__ = "community_names"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True, index=True)
+    plan = Column(Integer, default=0, nullable=False)   # count of plans where type='plan'
+    now = Column(Integer, default=0, nullable=False)    # count of plans where type='now'
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
